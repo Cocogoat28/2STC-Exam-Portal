@@ -1,0 +1,91 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block title %}Grade Candidate{% endblock %}
+
+{% block content %}
+  <h1>Grade: {{ candidate.army_number }} — {{ candidate.name }}</h1>
+
+  <form method="post" id="grade-form">{% csrf_token %}
+    <div style="display:flex; gap:30px; align-items:center;">
+      <div>
+        <label for="id_viva"><strong>Viva Marks:</strong></label><br>
+        <input type="number" id="id_viva" name="viva_marks" value="{{ candidate.viva_marks|default_if_none:'' }}" />
+      </div>
+      <div>
+        <label for="id_practical"><strong>Practical Marks:</strong></label><br>
+        <input type="number" id="id_practical" name="practical_marks" value="{{ candidate.practical_marks|default_if_none:'' }}" />
+      </div>
+      <div>
+        <strong>Objective Sum:</strong> <span id="objective-sum">0</span><br>
+        <strong>Total (live):</strong> <span id="live-total">0</span>
+      </div>
+    </div>
+
+    <h2 style="margin-top:20px;">Answers</h2>
+    <table class="adminlist" style="width:100%; border-collapse:collapse;" border="1">
+      <thead>
+        <tr>
+          <th style="width:80px;">Q No</th>
+          <th>Question</th>
+          <th style="width:35%;">Candidate Answer</th>
+          <th style="width:120px;">Marks Awarded</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ans in answers %}
+        <tr>
+          <td style="text-align:center;">{{ ans.question.number|default:"" }}</td>
+
+          <td>
+  {% if ans.question %}
+    {{ ans.question.number }}
+  {% else %}
+    &nbsp;
+  {% endif %}
+</td>
+
+<td>
+  {% if ans.question %}
+    {{ ans.question.text }}
+  {% else %}
+    &nbsp;
+  {% endif %}
+</td>
+
+          <td style="text-align:center;">
+            <input type="number" step="1" name="mark_{{ ans.pk }}" value="{{ ans.marks_awarded|default_if_none:'' }}" class="mark-input" data-ans-pk="{{ ans.pk }}" />
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">No answers found for this candidate.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <br/>
+    <button type="submit" class="default">Save Marks</button>
+  </form>
+
+  <script>
+    function computeTotals() {
+      const markInputs = document.querySelectorAll('.mark-input');
+      let objectiveSum = 0;
+      markInputs.forEach((el) => {
+        const v = parseFloat(el.value);
+        if (!isNaN(v)) objectiveSum += v;
+      });
+      const viva = parseFloat(document.getElementById('id_viva').value) || 0;
+      const prac = parseFloat(document.getElementById('id_practical').value) || 0;
+      document.getElementById('objective-sum').textContent = objectiveSum;
+      document.getElementById('live-total').textContent = (objectiveSum + viva + prac);
+    }
+
+    document.addEventListener('input', function(e) {
+      if (e.target && e.target.classList.contains('mark-input')) computeTotals();
+      if (e.target && (e.target.id === 'id_viva' || e.target.id === 'id_practical')) computeTotals();
+    });
+
+    // initial compute
+    document.addEventListener('DOMContentLoaded', computeTotals);
+  </script>
+{% endblock %}

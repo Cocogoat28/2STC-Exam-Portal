@@ -1,0 +1,10 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h2>Upload Candidate PDF</h2>
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <input type="file" name="pdf_file" accept="application/pdf" required>
+  <button type="submit">Upload</button>
+</form>
+{% endblock %}

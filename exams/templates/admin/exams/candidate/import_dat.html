@@ -1,0 +1,14 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block title %}Import candidates (.dat){% endblock %}
+
+{% block content %}
+  <h1>Import candidates (.dat)</h1>
+  <p>Upload the .dat file (gzip-compressed JSON) exported from the other system.</p>
+
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}
+    <label for="datfile">Choose .dat file</label><br>
+    <input type="file" name="datfile" id="datfile" accept=".dat" required><br><br>
+    <button class="default" type="submit">Upload & Import</button>
+  </form>
+{% endblock %}
