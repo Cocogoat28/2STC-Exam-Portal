@@ -1,0 +1,278 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    .grade-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .grade-table th, .grade-table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    .grade-table th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .marks-input {
+      width: 60px;
+      text-align: center;
+      padding: 4px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+    }
+    .marks-input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+    .marks-input.has-marks {
+      color: black;
+      background-color: #29ce4f;
+      border-color: #09cd36;
+    }
+    .summary-card {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .summary-stats {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .summary-stat {
+      background: white;
+      padding: 10px 15px;
+      border-radius: 5px;
+      border: 1px solid #dee2e6;
+      min-width: 120px;
+    }
+    .summary-stat strong {
+      display: block;
+      margin-bottom: 5px;
+      color: #495057;
+    }
+    .section-header {
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 10px;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      color: #343a40;
+    }
+    .submit-row {
+      margin-top: 30px;
+      padding: 15px;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      text-align: right;
+    }
+    .submit-row .button {
+      padding: 10px 15px;
+      background: #000000;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      margin-left: 10px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .submit-row .default {
+      background: #e81212;
+    }
+    .submit-row .button:hover {
+      opacity: 0.9;
+    }
+    .total-row {
+      background-color: #e9ecef;
+      font-weight: bold;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>Grade Answers for {{ candidate.name }} ({{ candidate.army_no }})</h1>
+  
+  <div class="summary-card">
+    <h3>Score Summary</h3>
+    <div class="summary-stats">
+      <div class="summary-stat">
+        <strong>Viva 1</strong>
+        {{ candidate.viva_1 }}
+      </div>
+      <div class="summary-stat">
+        <strong>Viva 2</strong>
+        {{ candidate.viva_2 }}
+      </div>
+      <div class="summary-stat">
+        <strong>Practical 1</strong>
+        {{ candidate.practical_1 }}
+      </div>
+      <div class="summary-stat">
+        <strong>Practical 2</strong>
+        {{ candidate.practical_2 }}
+      </div>
+      <div class="summary-stat" style="background-color: #e7f3ff;">
+        <strong>Total</strong>
+        <span id="summary-total">{{ candidate.grand_total }}</span>
+      </div>
+    </div>
+  </div>
+
+  <form method="post" id="grading-form">
+    {% csrf_token %}
+    
+    {% if primary_answers %}
+    <h2 class="section-header">Primary Questions</h2>
+    <table class="grade-table">
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Candidate's Answer</th>
+          <th>Correct Answer</th>
+          <th>Max Marks</th>
+          <th>Marks Obtained</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for answer in primary_answers %}
+        <tr>
+          <td>{{ answer.question.question }}</td>
+          <td>{{ answer.answer|default:"Not answered" }}</td>
+          <td>{{ answer.question.correct_answer|default:"N/A" }}</td>
+          <td style="text-align: center;">{{ answer.question.max_marks }}</td>
+          <td style="text-align: center;">
+            <input type="number" name="marks_{{ answer.id }}" 
+                   value="{{ answer.marks_obt }}" 
+                   min="0" max="{{ answer.question.max_marks }}" 
+                   class="marks-input {% if answer.marks_obt > 0 %}has-marks{% endif %}"
+                   data-max-marks="{{ answer.question.max_marks }}">
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+          <td colspan="3" style="text-align: right;"><strong>Primary Total:</strong></td>
+          <td style="text-align: center;"><strong>{{ primary_total_max }}</strong></td>
+          <td style="text-align: center;"><strong id="primary-total">{{ primary_total_obtained }}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if secondary_answers %}
+    <h2 class="section-header">Secondary Questions</h2>
+    <table class="grade-table">
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Candidate's Answer</th>
+          <th>Correct Answer</th>
+          <th>Max Marks</th>
+          <th>Marks Obtained</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for answer in secondary_answers %}
+        <tr>
+          <td>{{ answer.question.question }}</td>
+          <td>{{ answer.answer|default:"Not answered" }}</td>
+          <td>{{ answer.question.correct_answer|default:"N/A" }}</td>
+          <td style="text-align: center;">{{ answer.question.max_marks }}</td>
+          <td style="text-align: center;">
+            <input type="number" name="marks_{{ answer.id }}" 
+                   value="{{ answer.marks_obt }}" 
+                   min="0" max="{{ answer.question.max_marks }}" 
+                   class="marks-input {% if answer.marks_obt > 0 %}has-marks{% endif %}"
+                   data-max-marks="{{ answer.question.max_marks }}">
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+          <td colspan="3" style="text-align: right;"><strong>Secondary Total:</strong></td>
+          <td style="text-align: center;"><strong>{{ secondary_total_max }}</strong></td>
+          <td style="text-align: center;"><strong id="secondary-total">{{ secondary_total_obtained }}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    {% endif %}
+
+    <div class="submit-row">
+      <input type="submit" value="Save Grades" class="button default">
+      <a href="{% url 'admin:exams_candidate_change' candidate.id %}" class="button">Back to Candidate</a>
+    </div>
+  </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('grading-form');
+  const marksInputs = form.querySelectorAll('.marks-input');
+  const primaryTotalElem = document.getElementById('primary-total');
+  const secondaryTotalElem = document.getElementById('secondary-total');
+  const summaryTotalElem = document.getElementById('summary-total');
+  
+  // Calculate initial totals
+  updateTotals();
+  
+  // Add event listeners to all mark inputs
+  marksInputs.forEach(input => {
+    input.addEventListener('input', function() {
+      // Validate input
+      const maxMarks = parseInt(this.getAttribute('data-max-marks'));
+      let value = parseInt(this.value) || 0;
+      
+      if (value < 0) this.value = 0;
+      if (value > maxMarks) this.value = maxMarks;
+      
+      // Update visual feedback
+      if (value > 0) {
+        this.classList.add('has-marks');
+      } else {
+        this.classList.remove('has-marks');
+      }
+      
+      // Update totals
+      updateTotals();
+    });
+  });
+  
+  function updateTotals() {
+    let primaryTotal = 0;
+    let secondaryTotal = 0;
+    
+    // Calculate primary total
+    const primaryInputs = form.querySelectorAll('.grade-table:first-of-type .marks-input');
+    primaryInputs.forEach(input => {
+      primaryTotal += parseInt(input.value) || 0;
+    });
+    
+    // Calculate secondary total
+    const secondaryInputs = form.querySelectorAll('.grade-table:last-of-type .marks-input');
+    secondaryInputs.forEach(input => {
+      secondaryTotal += parseInt(input.value) || 0;
+    });
+    
+    // Update displayed totals
+    if (primaryTotalElem) primaryTotalElem.textContent = primaryTotal;
+    if (secondaryTotalElem) secondaryTotalElem.textContent = secondaryTotal;
+    
+    // Update summary total (viva + practical + question totals)
+    const vivaPracticalTotal = {{ candidate.viva_1 }} + {{ candidate.viva_2 }} + {{ candidate.practical_1 }} + {{ candidate.practical_2 }};
+    const grandTotal = vivaPracticalTotal + primaryTotal + secondaryTotal;
+    if (summaryTotalElem) summaryTotalElem.textContent = grandTotal;
+  }
+});
+</script>
+{% endblock %}

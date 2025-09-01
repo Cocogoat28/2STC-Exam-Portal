@@ -78,12 +78,25 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 # Default PK field
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Jazzmin minimal config
+# Jazzmin minimal conf
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [
+    BASE_DIR / "exam_portal" / "static",   # since your static is inside config/
+]
+
+
 JAZZMIN_SETTINGS = {
-    "site_title": "Exam Admin",
-    "site_header": "Exam Evaluation Portal",
-    "welcome_sign": "Welcome to the Exam Portal",
+    "site_title": "Exam Portal",
+    "site_header": "Admin Portal",
+    "welcome_sign": "JAI HIND!",
+    "copyright": "Developed by SLOG Solutions Pvt Ltd and 2STC",
+    "site_brand": "Admin Portal",
+
+    # Logo settings
+    "site_logo": "img/logo.png",           # top-left logo in header
+    "login_logo": "img/logo.png",          # login page logo (light bg)
+    "login_logo_dark": "img/logo.png",     # login page logo (dark bg)
+
+    # UI tweaks
+    "show_ui_builder": True,
 }
-
-
-EXAM_MAX_TOTAL = 100.0

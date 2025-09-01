@@ -1,399 +1,324 @@
-# your_app/admin.py
-import gzip
-import json
-import decimal
-from django import forms
-from django.shortcuts import redirect, render
-from django.urls import path, reverse
+# admin.py
+from __future__ import annotations
 from django.contrib import admin, messages
-from django.utils import timezone
+from django.db import transaction
+from django.shortcuts import render, redirect
+from django.urls import path, reverse
+from django.http import HttpResponse, HttpResponseForbidden
 from django.template.response import TemplateResponse
-from django.http import HttpResponse
-import openpyxl
-from openpyxl.utils import get_column_letter
-from django.utils.html import format_html
-from django.db.models import Max
+import time
 
 from .models import Candidate, Question, Answer
-
-# ---------------------------
-# Helper utilities
-# ---------------------------
-def _safe_float(v):
-    if v is None:
-        return None
-    try:
-        return float(v)
-    except Exception:
-        try:
-            return float(str(v))
-        except Exception:
-            return None
+from openpyxl import load_workbook, Workbook
 
 
-def _find_or_create_question(item, create_if_missing=True):
-    """
-    Find a Question for an answer item from the exported JSON.
-    Order:
-      1) pk lookup using question_id
-      2) exact text match
-      3) partial text match (first)
-      4) number lookup (Question.number)
-      5) optionally create Question (safe) so answers can be stored
-    Returns Question instance or None.
-    """
-    q = None
+# ------------ Excel helpers ------------
 
-    # 1) pk lookup
-    qid = item.get("question_id") or item.get("questionNumber") or item.get("question_number")
-    if qid is not None:
-        try:
-            q = Question.objects.filter(pk=int(qid)).first()
-        except Exception:
-            q = None
+REQUIRED_COLS = {"army_no", "exam_type", "question", "answer"}
+KNOWN_COLS = {
+    "s_no", "name", "photo", "fathers_name", "dob", "trade", "army_no", "adhaar_no",  # Added trade
+    "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
+    "training_center", "district", "state", "viva_1", "viva_2",
+    "practical_1", "practical_2", "exam_type", "question",
+    "answer", "correct_answer", "max_marks",
+}
 
-    # 2) exact text
+
+def _normalize_header(val: str) -> str:
+    return (
+        (val or "")
+        .strip()
+        .lower()
+        .replace(".", "_")
+        .replace(" ", "_")
+    )
+
+
+def _read_rows_from_excel(file):
+    wb = load_workbook(file, data_only=True)
+    ws = wb.worksheets[0]
+
+    headers = [_normalize_header(c.value) for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=False))]
+    header_index = {h: idx for idx, h in enumerate(headers) if h}
+
+    missing = REQUIRED_COLS - set(header_index)
+    if missing:
+        raise ValueError(f"Missing required columns in Excel: {', '.join(missing)}")
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        data = {}
+        for key, idx in header_index.items():
+            data[key] = row[idx]
+        yield data
+
+
+def _get_or_create_question(exam_type, text, correct, max_marks):
+    q = Question.objects.filter(exam_type=exam_type, question=text).first()
     if q is None:
-        text = item.get("question_text") or item.get("question") or item.get("questionText")
-        if text:
-            q = Question.objects.filter(text__iexact=text).first()
-
-    # 3) partial text
-    if q is None and text:
-        q = Question.objects.filter(text__icontains=text[:60]).first()
-
-    # 4) number lookup
-    if q is None:
-        try:
-            qnum = item.get("question_number") or item.get("question_no") or item.get("number")
-            if qnum is None and qid is not None:
-                # qid might actually be the question.number in some exports
-                qnum = qid
-            if qnum is not None:
-                q = Question.objects.filter(number=int(qnum)).first()
-        except Exception:
-            q = None
-
-    # 5) create if still not found and allowed
-    if q is None and create_if_missing:
-        # Build safe create payload
-        create_payload = {}
-        create_text = item.get("question_text") or item.get("question") or item.get("questionText") or f"Imported question ({qid})"
-        create_payload["text"] = create_text
-
-        # choose a sensible number: prefer qnum if valid, else max+1
-        try:
-            if 'qnum' in locals() and qnum:
-                create_payload["number"] = int(qnum)
-            else:
-                max_num = Question.objects.aggregate(max_num=Max("number"))["max_num"] or 0
-                create_payload["number"] = (int(max_num) + 1)
-        except Exception:
-            # fallback
-            create_payload["number"] = None
-
-        # create the question
-        try:
-            # If number is None, omit it
-            if create_payload["number"] is None:
-                q = Question.objects.create(text=create_payload["text"])
-            else:
-                q = Question.objects.create(number=create_payload["number"], text=create_payload["text"])
-            # Logging (visible in runserver console)
-            print(f"[IMPORT] Created Question id={q.pk} number={getattr(q,'number',None)} text={q.text[:60]!r}")
-        except Exception as e:
-            print(f"[IMPORT] Failed to create Question for item {item!r} -> {e}")
-            q = None
-
+        q = Question.objects.create(
+            exam_type=exam_type,
+            question=text,
+            correct_answer=correct or "",
+            max_marks=max_marks or 0,
+        )
     return q
 
 
-# ---------------------------
-# CandidateAdmin
-# ---------------------------
+# ------------ Custom Admins ------------
+
+class AnswerInline(admin.TabularInline):
+    model = Answer
+    extra = 0
+
+
 @admin.register(Candidate)
 class CandidateAdmin(admin.ModelAdmin):
-    list_display = (
-        "army_number", "name", "category", "paper",
-        "viva_marks", "practical_marks", "objective_marks",
-        "total_marks", "admin_actions"
-    )
-    list_editable = ("viva_marks", "practical_marks")
-    search_fields = ("army_number", "name", "category", "paper")
-    # (optional) change_list template path if you added a custom one; otherwise remove/comment:
     change_list_template = "admin/exams/candidate/change_list.html"
+    change_form_template = "admin/exams/candidate/change_form.html"
+    list_display = ("army_no", "name", "trade", "total_primary", "total_secondary", "grand_total")  # Added trade
+    list_filter = ("trade", "district", "state")  # Added trade filter
+    search_fields = ("army_no", "name", "fathers_name", "district", "state", "trade")  # Added trade
 
-    actions = ["export_results_excel_action"]
-
-    # Add custom URLs (import, grade, export results)
     def get_urls(self):
         urls = super().get_urls()
         custom = [
-            path(
-                "import-dat/",
-                self.admin_site.admin_view(self.import_dat_view),
-                name="yourapp_candidate_import_dat"
-            ),
-            path(
-                "grade/<int:pk>/",
-                self.admin_site.admin_view(self.grade_candidate_view),
-                name="yourapp_candidate_grade"
-            ),
-            path(
-                "export-results-excel/",
-                self.admin_site.admin_view(self.export_results_excel),
-                name="yourapp_export_results_excel"
-            ),
+            path("import-excel/", self.admin_site.admin_view(self.import_excel_view),
+                 name="exams_candidate_import_excel"),
+            path("export-results-excel/", self.admin_site.admin_view(self.export_results_excel_view),
+                 name="exams_export_results_excel"),
+            path("<int:candidate_id>/save-grades/", self.admin_site.admin_view(self.save_grades_view),
+                 name="exams_candidate_save_grades"),
+            path("<int:candidate_id>/grade-answers/", self.admin_site.admin_view(self.grade_answers_view),
+                 name="exams_candidate_grade_answers"),
         ]
         return custom + urls
 
-    # action for selected rows export
-    def export_results_excel_action(self, request, queryset):
-        return self._generate_results_excel(queryset)
+    # ---------- Candidate change form ----------
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        cand = Candidate.objects.get(pk=object_id)
+        answers = Answer.objects.filter(candidate=cand).select_related("question")
 
-    export_results_excel_action.short_description = "Export selected results to Excel"
+        primary = [a for a in answers if a.question.exam_type.lower() == "primary"]
+        secondary = [a for a in answers if a.question.exam_type.lower() == "secondary"]
 
-    # column to show per-row action links (Grade)
-    def admin_actions(self, obj):
-        grade_url = reverse("admin:yourapp_candidate_grade", args=[obj.pk])
-        return format_html('<a class="button" href="{}">Grade</a>', grade_url)
+        extra_context = extra_context or {}
+        extra_context["primary_answers"] = primary
+        extra_context["secondary_answers"] = secondary
+        extra_context["viva_total"] = cand.viva_1 + cand.viva_2
+        extra_context["practical_total"] = cand.practical_1 + cand.practical_2
+        extra_context["show_grade_button"] = True
+        
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
-    admin_actions.short_description = "Actions"
-
-    # ---------------------------
-    # Import endpoint
-    # ---------------------------
-    def import_dat_view(self, request):
-        """
-        Upload gzipped JSON `.dat` file and import candidates + answers.
-        This importer:
-         - creates/updates Candidate by army_number
-         - finds or creates Questions and creates Answers attached to candidate+question
-        """
+    # ---------- Grade Answers View ----------
+    def grade_answers_view(self, request, candidate_id):
+        if not request.user.has_perm('exams.change_answer'):
+            return HttpResponseForbidden("You don't have permission to grade answers")
+        
+        cand = Candidate.objects.get(pk=candidate_id)
+        answers = Answer.objects.filter(candidate=cand).select_related("question")
+        
+        # Separate answers by exam type
+        primary_answers = [a for a in answers if a.question.exam_type.lower() == "primary"]
+        secondary_answers = [a for a in answers if a.question.exam_type.lower() == "secondary"]
+        
         if request.method == "POST":
-            uploaded = request.FILES.get("datfile")
-            if not uploaded:
-                messages.error(request, "Please choose a .dat file to upload.")
-                return redirect(".")
+            # Process the form submission
+            for answer in answers:
+                field_name = f"marks_{answer.id}"
+                if field_name in request.POST:
+                    try:
+                        new_marks = int(request.POST[field_name])
+                        if 0 <= new_marks <= answer.question.max_marks:
+                            answer.marks_obt = new_marks
+                            answer.save()
+                    except ValueError:
+                        pass
+            
+            # Force refresh of the candidate object to ensure latest data
+            cand = Candidate.objects.get(pk=candidate_id)
+            
+            self.message_user(request, "Grades updated successfully", level=messages.SUCCESS)
+            # Add a cache-busting parameter to the redirect URL
+            return redirect(f"{reverse('admin:exams_candidate_change', args=[candidate_id])}?t={time.time()}")
+        
+        primary_total_obtained = sum(a.marks_obt for a in primary_answers)
+        primary_total_max = sum(a.question.max_marks for a in primary_answers)
+        secondary_total_obtained = sum(a.marks_obt for a in secondary_answers)
+        secondary_total_max = sum(a.question.max_marks for a in secondary_answers)
+        
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Grade Answers - {cand.name} ({cand.army_no}) - {cand.trade}",  # Added trade
+            "candidate": cand,
+            "primary_answers": primary_answers,
+            "secondary_answers": secondary_answers,
+            "primary_total_obtained": primary_total_obtained,
+            "primary_total_max": primary_total_max,
+            "secondary_total_obtained": secondary_total_obtained,
+            "secondary_total_max": secondary_total_max,
+            "opts": self.model._meta,
+        }
+        
+        return TemplateResponse(request, "admin/exams/candidate/grade_answers.html", context)
 
-            try:
-                raw = uploaded.read()
-                decompressed = gzip.decompress(raw)
-                payload = json.loads(decompressed.decode("utf-8"))
-            except Exception as e:
-                messages.error(request, f"Failed to read/parse file: {e}")
-                return redirect("..")
+    def save_grades_view(self, request, candidate_id):
+        cand = Candidate.objects.get(pk=candidate_id)
+        if request.method == "POST":
+            for ans in Answer.objects.filter(candidate=cand):
+                field_name = f"marks_{ans.id}"
+                if field_name in request.POST:
+                    try:
+                        new_marks = int(request.POST[field_name])
+                        ans.marks_obt = new_marks
+                        ans.save()
+                    except ValueError:
+                        pass
+            self.message_user(request, "Grades updated", level=messages.SUCCESS)
+        return redirect("admin:exams_candidate_change", cand.id)
 
-            created_candidates = 0
-            updated_candidates = 0
-            created_answers = 0
-            updated_answers = 0
+    # ---------- Import Excel ----------
+    def import_excel_view(self, request):
+        if request.method == "POST" and request.FILES.get("excel"):
+            excel_file = request.FILES["excel"]
+            created_candidates = updated_candidates = 0
+            created_answers = updated_answers = 0
             created_questions = 0
 
-            # iterate candidates
-            for cand_item in payload.get("candidates", []):
-                # the exporter might use "army_no" or "army_number"
-                army_no = cand_item.get("army_no") or cand_item.get("army_number") or cand_item.get("armyNumber") or cand_item.get("army")
-                if not army_no:
-                    continue
+            try:
+                with transaction.atomic():
+                    seen_questions_before = set(Question.objects.values_list("id", flat=True))
+                    for row in _read_rows_from_excel(excel_file):
+                        army = (row.get("army_no") or "").strip()
+                        if not army:
+                            continue
 
-                # find or create candidate by army_number
-                defaults = {}
-                if cand_item.get("name"):
-                    defaults["name"] = cand_item.get("name")
-                if cand_item.get("category"):
-                    defaults["category"] = cand_item.get("category")
-                if cand_item.get("paper") or cand_item.get("paper_title"):
-                    defaults["paper"] = cand_item.get("paper") or cand_item.get("paper_title")
-
-                v = cand_item.get("viva_marks") or cand_item.get("viva")
-                p = cand_item.get("practical_marks") or cand_item.get("practical")
-                if v is not None:
-                    vf = _safe_float(v)
-                    if vf is not None:
-                        defaults["viva_marks"] = int(round(vf))
-                if p is not None:
-                    pf = _safe_float(p)
-                    if pf is not None:
-                        defaults["practical_marks"] = int(round(pf))
-
-                candidate_obj, created = Candidate.objects.get_or_create(
-                    army_number=str(army_no),
-                    defaults=defaults
-                )
-                if created:
-                    created_candidates += 1
-                else:
-                    updated = False
-                    for fld in ("name", "category", "paper"):
-                        if cand_item.get(fld) and getattr(candidate_obj, fld, None) != cand_item.get(fld):
-                            setattr(candidate_obj, fld, cand_item.get(fld))
-                            updated = True
-                    if v is not None:
-                        vf = _safe_float(v)
-                        if vf is not None and candidate_obj.viva_marks != int(round(vf)):
-                            candidate_obj.viva_marks = int(round(vf))
-                            updated = True
-                    if p is not None:
-                        pf = _safe_float(p)
-                        if pf is not None and candidate_obj.practical_marks != int(round(pf)):
-                            candidate_obj.practical_marks = int(round(pf))
-                            updated = True
-                    if updated:
-                        candidate_obj.save()
-                        updated_candidates += 1
-
-                # import answers array
-                for ans_item in cand_item.get("answers", []):
-                    # Try find / create question
-                    q = _find_or_create_question(ans_item, create_if_missing=True)
-                    if not q:
-                        # If still not found/created, log and skip
-                        print(f"[IMPORT] Could not find or create Question for answer item: {ans_item!r}")
-                        continue
-
-                    # create / update answer
-                    answer_text = ans_item.get("answer") or ans_item.get("answer_text") or ans_item.get("response") or ""
-                    try:
-                        answer_obj, ans_created = Answer.objects.update_or_create(
-                            candidate=candidate_obj,
-                            question=q,
-                            defaults={"answer_text": answer_text}
+                        cand_defaults = {
+                            "s_no": row.get("s_no") or 0,
+                            "name": row.get("name") or "",
+                            "fathers_name": row.get("fathers_name") or "",
+                            "dob": row.get("dob") or None,
+                            "trade": row.get("trade") or "",  # Added trade
+                            "adhaar_no": row.get("adhaar_no") or "",
+                            "name_of_qualification": row.get("name_of_qualification") or "",
+                            "duration_of_qualification": row.get("duration_of_qualification") or "",
+                            "credits": row.get("credits") or 0,
+                            "nsqf_level": row.get("nsqf_level") or 0,
+                            "training_center": row.get("training_center") or "",
+                            "district": row.get("district") or "",
+                            "state": row.get("state") or "",
+                            "viva_1": row.get("viva_1") or 0,
+                            "viva_2": row.get("viva_2") or 0,
+                            "practical_1": row.get("practical_1") or 0,
+                            "practical_2": row.get("practical_2") or 0,
+                        }
+                        cand, created = Candidate.objects.get_or_create(
+                            army_no=army, defaults=cand_defaults
                         )
-                        if ans_created:
+                        if not created:
+                            for k, v in cand_defaults.items():
+                                if v and getattr(cand, k) != v:
+                                    setattr(cand, k, v)
+                            cand.save()
+                            updated_candidates += 1
+                        else:
+                            created_candidates += 1
+
+                        q = _get_or_create_question(
+                            exam_type=row.get("exam_type") or "",
+                            text=row.get("question") or "",
+                            correct=row.get("correct_answer") or "",
+                            max_marks=row.get("max_marks") or 0,
+                        )
+                        if q.id not in seen_questions_before:
+                            created_questions += 1
+                            seen_questions_before.add(q.id)
+
+                        ans_text = (row.get("answer") or "").strip()
+                        marks = row.get("marks_obt") or 0
+
+                        ans, a_created = Answer.objects.get_or_create(
+                            candidate=cand, question=q,
+                            defaults={"answer": ans_text, "marks_obt": int(marks)},
+                        )
+                        if a_created:
                             created_answers += 1
                         else:
-                            updated_answers += 1
-                    except Exception as e:
-                        print(f"[IMPORT] Failed to create/update Answer for candidate {candidate_obj}: {e}")
-                        continue
+                            if ans.answer != ans_text or ans.marks_obt != int(marks):
+                                ans.answer = ans_text
+                                ans.marks_obt = int(marks)
+                                ans.save()
+                                updated_answers += 1
 
-            messages.success(
-                request,
-                f"Import finished. Candidates created: {created_candidates}, updated: {updated_candidates}. "
-                f"Answers created: {created_answers}, updated: {updated_answers}."
-            )
-            return redirect("..")
+                self.message_user(
+                    request,
+                    (
+                        f"Import complete. "
+                        f"Candidates: +{created_candidates} / updated {updated_candidates}. "
+                        f"Questions: +{created_questions}. "
+                        f"Answers: +{created_answers} / updated {updated_answers}."
+                    ),
+                    level=messages.SUCCESS,
+                )
+                return redirect("admin:exams_candidate_changelist")
 
-        context = dict(
-            self.admin_site.each_context(request),
-            title="Import candidates (.dat)",
-        )
-        return TemplateResponse(request, "admin/exams/candidate/import_dat.html", context)
+            except Exception as e:
+                self.message_user(request, f"Import failed: {e}", level=messages.ERROR)
 
-    # ---------------------------
-    # Grade candidate view
-    # ---------------------------
-    def grade_candidate_view(self, request, pk):
-        candidate = Candidate.objects.filter(pk=pk).first()
-        if not candidate:
-            messages.error(request, "Candidate not found.")
-            return redirect("..")
+        ctx = {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "title": "Import candidates & answers from Excel",
+        }
+        return render(request, "admin/exams/candidate/import_excel.html", ctx)
 
-        # fetch all answers (these should now be created by importer)
-        answers_qs = Answer.objects.filter(candidate=candidate).select_related("question").order_by("question__number")
-
-        if request.method == "POST":
-            v = request.POST.get("viva_marks")
-            p = request.POST.get("practical_marks")
-            saved_count = 0
-            if v is not None:
-                try:
-                    candidate.viva_marks = int(float(v))
-                except Exception:
-                    pass
-            if p is not None:
-                try:
-                    candidate.practical_marks = int(float(p))
-                except Exception:
-                    pass
-            candidate.save()
-
-            for ans in answers_qs:
-                key = f"mark_{ans.pk}"
-                if key in request.POST:
-                    raw = request.POST.get(key)
-                    try:
-                        val = int(float(raw))
-                    except Exception:
-                        val = None
-                    if val is not None:
-                        ans.marks_awarded = val
-                        ans.save(update_fields=["marks_awarded"])
-                        saved_count += 1
-
-            messages.success(request, f"Saved marks for {saved_count} answers and updated viva/practical.")
-            return redirect(reverse("admin:yourapp_candidate_grade", args=[pk]))
-
-        context = dict(
-            self.admin_site.each_context(request),
-            title=f"Grade {candidate.army_number} — {candidate.name}",
-            candidate=candidate,
-            answers=answers_qs,
-        )
-        return TemplateResponse(request, "admin/exams/candidate/grade_candidate.html", context)
-
-    # ---------------------------
-    # Results Excel export (all or selected)
-    # ---------------------------
-    def _generate_results_excel(self, queryset):
-        """
-        Build an Excel workbook with candidate results:
-        Army Number, Name, Category, Paper, Viva, Practical, ObjectiveMarks, Total, Percentage
-        """
-        from django.conf import settings
-        wb = openpyxl.Workbook()
+    # ---------- Export ----------
+    def export_results_excel_view(self, request):
+        wb = Workbook()
         ws = wb.active
         ws.title = "Results"
 
         headers = [
-            "Army Number", "Name", "Category", "Paper",
-            "Viva Marks", "Practical Marks", "Objective Marks",
-            "Total Marks", "Percentage"
+            "s_no", "name", "fathers_name", "dob", "trade", "army_no", "adhaar_no",  # Added trade
+            "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
+            "training_center", "district", "state", "viva_1", "viva_2", "practical_1", "practical_2",
+            "exam_type", "question", "answer", "correct_answer", "max_marks", "marks_obt",
         ]
-        for cidx, h in enumerate(headers, start=1):
-            ws.cell(row=1, column=cidx).value = h
+        ws.append(headers)
 
-        row = 2
-        for c in queryset:
-            obj_marks = sum((a.marks_awarded or 0) for a in c.answers.all())
-            viva = c.viva_marks or 0
-            prac = c.practical_marks or 0
-            total = obj_marks + viva + prac
+        for ans in Answer.objects.select_related("candidate", "question").all().order_by(
+            "candidate__army_no", "question__id"
+        ):
+            c, q = ans.candidate, ans.question
+            ws.append([
+                c.s_no, c.name, c.fathers_name, c.dob, c.trade, c.army_no, c.adhaar_no,  # Added trade
+                c.name_of_qualification, c.duration_of_qualification, c.credits, c.nsqf_level,
+                c.training_center, c.district, c.state, c.viva_1, c.viva_2,
+                c.practical_1, c.practical_2,
+                q.exam_type, q.question, ans.answer, q.correct_answer, q.max_marks, ans.marks_obt,
+            ])
 
-            max_total = getattr(settings, "EXAM_MAX_TOTAL", None)
-            if max_total:
-                try:
-                    pct = round((total / float(max_total)) * 100.0, 2)
-                except Exception:
-                    pct = None
-            else:
-                pct = None
+        resp = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        resp["Content-Disposition"] = 'attachment; filename="results.xlsx"'
+        wb.save(resp)
+        return resp
 
-            row_values = [
-                c.army_number,
-                c.name,
-                c.category,
-                c.paper,
-                viva,
-                prac,
-                obj_marks,
-                total,
-                pct
-            ]
-            for idx, val in enumerate(row_values, start=1):
-                ws.cell(row=row, column=idx).value = val
-            row += 1
+    # ---------- Totals ----------
+    def total_primary(self, obj):
+        return sum(a.marks_obt for a in obj.answer_set.filter(question__exam_type__iexact="primary"))
 
-        for i in range(1, len(headers) + 1):
-            ws.column_dimensions[get_column_letter(i)].width = 18
+    def total_secondary(self, obj):
+        return sum(a.marks_obt for a in obj.answer_set.filter(question__exam_type__iexact="secondary"))
 
-        output = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        ts = timezone.now().strftime("%Y%m%d%H%M%S")
-        output["Content-Disposition"] = f'attachment; filename="results_{ts}.xlsx"'
-        wb.save(output)
-        return output
+    def grand_total(self, obj):
+        viva_practical = obj.viva_1 + obj.viva_2 + obj.practical_1 + obj.practical_2
+        return self.total_primary(obj) + self.total_secondary(obj) + viva_practical
 
-    def export_results_excel(self, request):
-        qs = self.get_queryset(request)
-        return self._generate_results_excel(qs)
+
+# remove Question from sidebar
+try:
+    admin.site.unregister(Question)
+except admin.sites.NotRegistered:
+    pass
