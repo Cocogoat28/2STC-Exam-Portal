@@ -16,7 +16,7 @@ from openpyxl import load_workbook, Workbook
 
 REQUIRED_COLS = {"army_no", "exam_type", "question", "answer"}
 KNOWN_COLS = {
-    "s_no", "name", "photo", "fathers_name", "dob", "trade", "army_no", "adhaar_no",  # Added trade
+    "s_no", "name", "photo", "fathers_name", "dob", "trade","rank", "army_no", "adhaar_no",  # Added trade
     "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
     "training_center", "district", "state", "viva_1", "viva_2",
     "practical_1", "practical_2", "exam_type", "question",
@@ -77,7 +77,7 @@ class CandidateAdmin(admin.ModelAdmin):
     change_form_template = "admin/exams/candidate/change_form.html"
     list_display = ("army_no", "name", "trade", "total_primary", "total_secondary", "grand_total")  # Added trade
     list_filter = ("trade", "district", "state")  # Added trade filter
-    search_fields = ("army_no", "name", "fathers_name", "district", "state", "trade")  # Added trade
+    search_fields = ("army_no", "name","rank", "fathers_name", "district", "state", "trade")  # Added trade
 
     def get_urls(self):
         urls = super().get_urls()
@@ -198,6 +198,7 @@ class CandidateAdmin(admin.ModelAdmin):
                             "name": row.get("name") or "",
                             "fathers_name": row.get("fathers_name") or "",
                             "dob": row.get("dob") or None,
+                            "rank": row.get("rank") or "",  # Added rank
                             "trade": row.get("trade") or "",  # Added trade
                             "adhaar_no": row.get("adhaar_no") or "",
                             "name_of_qualification": row.get("name_of_qualification") or "",
@@ -279,7 +280,7 @@ class CandidateAdmin(admin.ModelAdmin):
         ws.title = "Results"
 
         headers = [
-            "s_no", "name", "fathers_name", "dob", "trade", "army_no", "adhaar_no",  # Added trade
+            "s_no", "name", "fathers_name", "dob","rank", "trade", "army_no", "adhaar_no",  # Added trade
             "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
             "training_center", "district", "state", "viva_1", "viva_2", "practical_1", "practical_2",
             "exam_type", "question", "answer", "correct_answer", "max_marks", "marks_obt",
@@ -291,7 +292,7 @@ class CandidateAdmin(admin.ModelAdmin):
         ):
             c, q = ans.candidate, ans.question
             ws.append([
-                c.s_no, c.name, c.fathers_name, c.dob, c.trade, c.army_no, c.adhaar_no,  # Added trade
+                c.s_no, c.name, c.fathers_name, c.dob,c.rank, c.trade, c.army_no, c.adhaar_no,  # Added trade
                 c.name_of_qualification, c.duration_of_qualification, c.credits, c.nsqf_level,
                 c.training_center, c.district, c.state, c.viva_1, c.viva_2,
                 c.practical_1, c.practical_2,

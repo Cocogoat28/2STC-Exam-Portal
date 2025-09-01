@@ -24,6 +24,7 @@
       padding: 4px;
       border: 1px solid #ccc;
       border-radius: 3px;
+      background-color: white;
     }
     .marks-input:focus {
       outline: none;
@@ -154,11 +155,11 @@
           <td>{{ answer.question.correct_answer|default:"N/A" }}</td>
           <td style="text-align: center;">{{ answer.question.max_marks }}</td>
           <td style="text-align: center;">
-            <input type="number" name="marks_{{ answer.id }}" 
-                   value="{{ answer.marks_obt }}" 
-                   min="0" max="{{ answer.question.max_marks }}" 
-                   class="marks-input {% if answer.marks_obt > 0 %}has-marks{% endif %}"
-                   data-max-marks="{{ answer.question.max_marks }}">
+            <input type="number" name="marks_{{ answer.id }}"
+            value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% endif %}"
+            min="0" max="{{ answer.question.max_marks }}"
+            class="marks-input"
+            data-max-marks="{{ answer.question.max_marks }}">
           </td>
         </tr>
         {% endfor %}
@@ -191,11 +192,11 @@
           <td>{{ answer.question.correct_answer|default:"N/A" }}</td>
           <td style="text-align: center;">{{ answer.question.max_marks }}</td>
           <td style="text-align: center;">
-            <input type="number" name="marks_{{ answer.id }}" 
-                   value="{{ answer.marks_obt }}" 
-                   min="0" max="{{ answer.question.max_marks }}" 
-                   class="marks-input {% if answer.marks_obt > 0 %}has-marks{% endif %}"
-                   data-max-marks="{{ answer.question.max_marks }}">
+            <input type="number" name="marks_{{ answer.id }}"
+            value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% endif %}"
+            min="0" max="{{ answer.question.max_marks }}"
+            class="marks-input"
+            data-max-marks="{{ answer.question.max_marks }}">
           </td>
         </tr>
         {% endfor %}
@@ -223,6 +224,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const secondaryTotalElem = document.getElementById('secondary-total');
   const summaryTotalElem = document.getElementById('summary-total');
   
+  // Initialize input fields - remove has-marks class if value is empty or 0
+  marksInputs.forEach(input => {
+    if (input.value.trim() === "" || input.value === "0") {
+      input.value = ""; // Clear the value if it's 0
+      input.classList.remove('has-marks');
+    } else {
+      input.classList.add('has-marks');
+    }
+  });
+  
   // Calculate initial totals
   updateTotals();
   
@@ -237,13 +248,23 @@ document.addEventListener('DOMContentLoaded', function() {
       if (value > maxMarks) this.value = maxMarks;
       
       // Update visual feedback
-      if (value > 0) {
+      if (this.value.trim() !== "") {
+        this.classList.add('has-marks');   // turns green for any entered value (including 0)
+      } else {
+        this.classList.remove('has-marks'); // stays white if untouched
+      }
+      
+      // Update totals
+      updateTotals();
+    });
+    
+    // Also handle change event for cases where user might type then click away
+    input.addEventListener('change', function() {
+      if (this.value.trim() !== "") {
         this.classList.add('has-marks');
       } else {
         this.classList.remove('has-marks');
       }
-      
-      // Update totals
       updateTotals();
     });
   });
@@ -255,7 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Calculate primary total
     const primaryInputs = form.querySelectorAll('.grade-table:first-of-type .marks-input');
     primaryInputs.forEach(input => {
-      primaryTotal += parseInt(input.value) || 0;
+      primaryTotal += parseInt(input.value) ;
     });
     
     // Calculate secondary total

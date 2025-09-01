@@ -27,7 +27,7 @@ class Candidate(models.Model):
     photo = models.ImageField(upload_to="photos/", blank=True, null=True)
     fathers_name = models.CharField(max_length=255, null=True, blank=True)
     trade = models.CharField(max_length=50, choices=TRADE_CHOICES, blank=True, null=True)  # New field
-
+    rank = models.CharField(max_length=255, null=True, blank=True)
     dob = models.DateField(blank=True, null=True)
     army_no = models.CharField(max_length=50, unique=True)
     adhaar_no = models.CharField(max_length=20, blank=True, null=True)
