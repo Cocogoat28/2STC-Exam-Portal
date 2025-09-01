@@ -156,7 +156,7 @@
           <td style="text-align: center;">{{ answer.question.max_marks }}</td>
           <td style="text-align: center;">
             <input type="number" name="marks_{{ answer.id }}"
-            value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% endif %}"
+            value="{% if answer.marks_obt is not None and answer.marks_obt != 0 %}{{ answer.marks_obt }}{% endif %}"
             min="0" max="{{ answer.question.max_marks }}"
             class="marks-input"
             data-max-marks="{{ answer.question.max_marks }}">
@@ -193,7 +193,7 @@
           <td style="text-align: center;">{{ answer.question.max_marks }}</td>
           <td style="text-align: center;">
             <input type="number" name="marks_{{ answer.id }}"
-            value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% endif %}"
+            value="{% if answer.marks_obt is not None and answer.marks_obt != 0 %}{{ answer.marks_obt }}{% endif %}"
             min="0" max="{{ answer.question.max_marks }}"
             class="marks-input"
             data-max-marks="{{ answer.question.max_marks }}">
@@ -224,13 +224,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const secondaryTotalElem = document.getElementById('secondary-total');
   const summaryTotalElem = document.getElementById('summary-total');
   
-  // Initialize input fields - remove has-marks class if value is empty or 0
+  // Initialize input fields
   marksInputs.forEach(input => {
-    if (input.value.trim() === "" || input.value === "0") {
-      input.value = ""; // Clear the value if it's 0
-      input.classList.remove('has-marks');
-    } else {
-      input.classList.add('has-marks');
+    if (input.value.trim() !== "") {
+      input.classList.add('has-marks'); // includes "0" as green
     }
   });
   
@@ -240,30 +237,18 @@ document.addEventListener('DOMContentLoaded', function() {
   // Add event listeners to all mark inputs
   marksInputs.forEach(input => {
     input.addEventListener('input', function() {
-      // Validate input
       const maxMarks = parseInt(this.getAttribute('data-max-marks'));
-      let value = parseInt(this.value) || 0;
-      
-      if (value < 0) this.value = 0;
-      if (value > maxMarks) this.value = maxMarks;
-      
-      // Update visual feedback
-      if (this.value.trim() !== "") {
-        this.classList.add('has-marks');   // turns green for any entered value (including 0)
-      } else {
-        this.classList.remove('has-marks'); // stays white if untouched
-      }
-      
-      // Update totals
-      updateTotals();
-    });
-    
-    // Also handle change event for cases where user might type then click away
-    input.addEventListener('change', function() {
-      if (this.value.trim() !== "") {
-        this.classList.add('has-marks');
-      } else {
+      let value = parseInt(this.value);
+
+      // If empty, remove green
+      if (this.value.trim() === "") {
         this.classList.remove('has-marks');
+      } else {
+        // validate range
+        if (value < 0) this.value = 0;
+        if (value > maxMarks) this.value = maxMarks;
+        // add green even if 0
+        this.classList.add('has-marks');
       }
       updateTotals();
     });
@@ -276,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Calculate primary total
     const primaryInputs = form.querySelectorAll('.grade-table:first-of-type .marks-input');
     primaryInputs.forEach(input => {
-      primaryTotal += parseInt(input.value) ;
+      primaryTotal += parseInt(input.value) || 0;
     });
     
     // Calculate secondary total

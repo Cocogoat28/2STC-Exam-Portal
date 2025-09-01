@@ -16,7 +16,7 @@ from openpyxl import load_workbook, Workbook
 
 REQUIRED_COLS = {"army_no", "exam_type", "question", "answer"}
 KNOWN_COLS = {
-    "s_no", "name", "photo", "fathers_name", "dob", "trade","rank", "army_no", "adhaar_no",  # Added trade
+    "s_no", "name","center" ,"photo", "fathers_name", "dob", "trade","rank", "army_no", "adhaar_no",  # Added trade
     "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
     "training_center", "district", "state", "viva_1", "viva_2",
     "practical_1", "practical_2", "exam_type", "question",
@@ -54,13 +54,23 @@ def _read_rows_from_excel(file):
 
 def _get_or_create_question(exam_type, text, correct, max_marks):
     q = Question.objects.filter(exam_type=exam_type, question=text).first()
+    # normalize correct_answer
+    correct_clean = (correct or "")
+    if isinstance(correct_clean, str) and correct_clean.strip().lower() == "null":
+        correct_clean = None
+
     if q is None:
         q = Question.objects.create(
             exam_type=exam_type,
             question=text,
-            correct_answer=correct or "",
+            correct_answer=correct_clean,
             max_marks=max_marks or 0,
         )
+    else:
+        # update existing question too
+        q.correct_answer = correct_clean
+        q.max_marks = max_marks or 0
+        q.save()
     return q
 
 
@@ -75,8 +85,8 @@ class AnswerInline(admin.TabularInline):
 class CandidateAdmin(admin.ModelAdmin):
     change_list_template = "admin/exams/candidate/change_list.html"
     change_form_template = "admin/exams/candidate/change_form.html"
-    list_display = ("army_no", "name", "trade", "total_primary", "total_secondary", "grand_total")  # Added trade
-    list_filter = ("trade", "district", "state")  # Added trade filter
+    list_display = ("army_no", "name","center", "trade", "total_primary", "total_secondary", "grand_total")  # Added trade
+    list_filter = ("center","trade")  # Added trade filter
     search_fields = ("army_no", "name","rank", "fathers_name", "district", "state", "trade")  # Added trade
 
     def get_urls(self):
@@ -118,6 +128,17 @@ class CandidateAdmin(admin.ModelAdmin):
         cand = Candidate.objects.get(pk=candidate_id)
         answers = Answer.objects.filter(candidate=cand).select_related("question")
         
+        # 🔥 Auto-marking logic
+        for ans in answers:
+            cand_ans = (ans.answer or "").strip().lower()
+            corr_raw = (ans.question.correct_answer or "").strip().lower()
+            if cand_ans and corr_raw:
+                correct_list = [c.strip() for c in corr_raw.split(",")]
+                if cand_ans in correct_list:
+                    if ans.marks_obt is None or ans.marks_obt == 0:
+                        ans.marks_obt = ans.question.max_marks
+                        ans.save()
+        
         # Separate answers by exam type
         primary_answers = [a for a in answers if a.question.exam_type.lower() == "primary"]
         secondary_answers = [a for a in answers if a.question.exam_type.lower() == "secondary"]
@@ -142,9 +163,9 @@ class CandidateAdmin(admin.ModelAdmin):
             # Add a cache-busting parameter to the redirect URL
             return redirect(f"{reverse('admin:exams_candidate_change', args=[candidate_id])}?t={time.time()}")
         
-        primary_total_obtained = sum(a.marks_obt for a in primary_answers)
+        primary_total_obtained = sum(a.marks_obt or 0 for a in primary_answers)
         primary_total_max = sum(a.question.max_marks for a in primary_answers)
-        secondary_total_obtained = sum(a.marks_obt for a in secondary_answers)
+        secondary_total_obtained = sum(a.marks_obt or 0 for a in secondary_answers)
         secondary_total_max = sum(a.question.max_marks for a in secondary_answers)
         
         context = {
@@ -196,6 +217,8 @@ class CandidateAdmin(admin.ModelAdmin):
                         cand_defaults = {
                             "s_no": row.get("s_no") or 0,
                             "name": row.get("name") or "",
+                            "center": row.get("center") or "",  # Added center
+                            "photo": row.get("photo") or None,
                             "fathers_name": row.get("fathers_name") or "",
                             "dob": row.get("dob") or None,
                             "rank": row.get("rank") or "",  # Added rank
@@ -228,7 +251,7 @@ class CandidateAdmin(admin.ModelAdmin):
                         q = _get_or_create_question(
                             exam_type=row.get("exam_type") or "",
                             text=row.get("question") or "",
-                            correct=row.get("correct_answer") or "",
+                            correct=row.get("correct_answer") ,
                             max_marks=row.get("max_marks") or 0,
                         )
                         if q.id not in seen_questions_before:
@@ -280,7 +303,7 @@ class CandidateAdmin(admin.ModelAdmin):
         ws.title = "Results"
 
         headers = [
-            "s_no", "name", "fathers_name", "dob","rank", "trade", "army_no", "adhaar_no",  # Added trade
+            "s_no", "name","center", "fathers_name", "dob","rank", "trade", "army_no", "adhaar_no",  # Added trade
             "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
             "training_center", "district", "state", "viva_1", "viva_2", "practical_1", "practical_2",
             "exam_type", "question", "answer", "correct_answer", "max_marks", "marks_obt",
@@ -292,7 +315,7 @@ class CandidateAdmin(admin.ModelAdmin):
         ):
             c, q = ans.candidate, ans.question
             ws.append([
-                c.s_no, c.name, c.fathers_name, c.dob,c.rank, c.trade, c.army_no, c.adhaar_no,  # Added trade
+                c.s_no, c.name, c.center, c.fathers_name, c.dob,c.rank, c.trade, c.army_no, c.adhaar_no,  # Added trade
                 c.name_of_qualification, c.duration_of_qualification, c.credits, c.nsqf_level,
                 c.training_center, c.district, c.state, c.viva_1, c.viva_2,
                 c.practical_1, c.practical_2,
@@ -308,10 +331,10 @@ class CandidateAdmin(admin.ModelAdmin):
 
     # ---------- Totals ----------
     def total_primary(self, obj):
-        return sum(a.marks_obt for a in obj.answer_set.filter(question__exam_type__iexact="primary"))
+        return sum(a.marks_obt or 0 for a in obj.answer_set.filter(question__exam_type__iexact="primary"))
 
     def total_secondary(self, obj):
-        return sum(a.marks_obt for a in obj.answer_set.filter(question__exam_type__iexact="secondary"))
+        return sum(a.marks_obt or 0 for a in obj.answer_set.filter(question__exam_type__iexact="secondary"))
 
     def grand_total(self, obj):
         viva_practical = obj.viva_1 + obj.viva_2 + obj.practical_1 + obj.practical_2
