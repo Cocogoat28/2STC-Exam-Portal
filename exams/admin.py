@@ -298,6 +298,8 @@ class CandidateAdmin(admin.ModelAdmin):
         return render(request, "admin/exams/candidate/import_excel.html", ctx)
 
     # ---------- Export ----------
+
+
     def export_results_excel_view(self, request):
         wb = Workbook()
         
@@ -307,35 +309,124 @@ class CandidateAdmin(admin.ModelAdmin):
         
         # Create Secondary sheet
         ws_secondary = wb.create_sheet(title="SECONDARY MARKS STATEMENT")
-        
-        # Define headers for both sheets
+
+        # Create Combined sheet
+        # --- Combined Sheet ---
+        ws_combined = wb.create_sheet(title="COMBINED RESULTS")
+
+# ---------- Styles ----------
+        bold_font = Font(bold=True)
+        center_aligned = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
+        )
+
+        # ----- Combined Sheet Formatting -----
+        ws_combined.merge_cells("A1:A2")  # S No
+        ws_combined.merge_cells("B1:B2")  # Centre
+        ws_combined.merge_cells("C1:C2")  # Army No
+        ws_combined.merge_cells("D1:D2")  # Rk
+        ws_combined.merge_cells("E1:E2")  # Tde
+        ws_combined.merge_cells("F1:F2")  # Name
+
+        # Get qualification names dynamically
+        first_cand = Candidate.objects.first()
+        primary_qf_name = f"Primary-1" if first_cand else "Primary-1"
+        secondary_qf_name = f"Secondary-1" if first_cand else "Secondary-1"
+
+        # Merge headers for primary and secondary blocks (5 cols each)
+        ws_combined.merge_cells("G1:K1")  # Primary-1
+        ws_combined.merge_cells("L1:P1")  # Secondary-1
+
+        # --------- Write Row 1 (main headers) ---------
+        ws_combined["A1"] = "S No"
+        ws_combined["B1"] = "Centre"
+        ws_combined["C1"] = "Army No"
+        ws_combined["D1"] = "Rk"
+        ws_combined["E1"] = "Tde"
+        ws_combined["F1"] = "Name"
+        ws_combined["G1"] = primary_qf_name
+        ws_combined["L1"] = secondary_qf_name
+
+        # --------- Write Row 2 (sub-headers) ---------
+        sub_headers = [
+            "Theory*", "Practical*", "Viva*", "Total", "Percentage (%)",
+            "Theory*", "Practical*", "Viva*", "Total", "Percentage (%)"
+        ]
+        for i, val in enumerate(sub_headers, start=7):  # G=7th col
+            ws_combined.cell(row=2, column=i, value=val)
+
+        # Apply header styles
+        for row in ws_combined.iter_rows(min_row=1, max_row=2):
+            for cell in row:
+                if cell.value:
+                    cell.font = bold_font
+                    cell.alignment = center_aligned
+                    cell.border = thin_border
+
+        # -------- Fill candidate data --------
+        row_idx = 3
+        for cand in Candidate.objects.all():
+            # Primary
+            primary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="primary")
+            )
+            primary_practical = cand.practical_1 or 0
+            primary_viva = cand.viva_1 or 0
+            primary_total = primary_theory + primary_practical + primary_viva
+            primary_percentage = primary_total  # adjust denominator if needed
+
+            # Secondary
+            secondary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="secondary")
+            )
+            secondary_practical = cand.practical_2 or 0
+            secondary_viva = cand.viva_2 or 0
+            secondary_total = secondary_theory + secondary_practical + secondary_viva
+            secondary_percentage = secondary_total  # adjust denominator if needed
+
+            ws_combined.append([
+                cand.s_no or "",
+                cand.center or "",
+                cand.army_no or "",
+                cand.rank or "",
+                cand.trade or "",
+                cand.name or "",
+                primary_theory, primary_practical, primary_viva,
+                primary_total, primary_percentage,
+                secondary_theory, secondary_practical, secondary_viva,
+                secondary_total, secondary_percentage
+            ])
+            row_idx += 1
+
+        # Apply borders to all data rows
+        for row in ws_combined.iter_rows(min_row=1, max_row=ws_combined.max_row):
+            for cell in row:
+                if cell.value is not None:
+                    cell.border = thin_border
+
+
+        # ---------- Primary & Secondary Headers ----------
         primary_headers = [
-            "S No", "Name of Candidate", "Photograph", "Father's Name", "DOB", 
+            "S No", "Name of Candidate", "Photograph", "Father's Name","Trade", "DOB", 
             "Enrolment No", "Aadhar Number", "Name of Qualification", 
             "Duration of Qualification", "Credits", "NSQF Level", "Training Centre", 
             "District", "State", "Percentage"
         ]
         
         secondary_headers = [
-            "S No", "Name of Candidate", "Photograph", "Father's Name", "DOB", 
+            "S No", "Name of Candidate", "Photograph", "Father's Name","Trade", "DOB", 
             "Enrolment No", "Aadhar Number", "Name of Qualification", 
             "Duration of Qualification", "Credits", "NSQF Level", "Training Centre", 
             "District", "State", "Percentage"
         ]
         
-        # Add headers to both sheets
+        # Add headers
         ws_primary.append(primary_headers)
         ws_secondary.append(secondary_headers)
-        
-        # Style the headers
-        bold_font = Font(bold=True)
-        center_aligned = Alignment(horizontal='center')
-        thin_border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
-        )
         
         # Apply styling to headers
         for row in ws_primary.iter_rows(min_row=1, max_row=1):
@@ -352,24 +443,20 @@ class CandidateAdmin(admin.ModelAdmin):
         
         # Process candidates for both sheets
         for cand in Candidate.objects.all():
-            # Calculate primary total (primary answers + viva_1 + practical_1)
             primary_total = sum(
-                a.marks_obt or 0 for a in 
-                cand.answer_set.filter(question__exam_type__iexact="primary")
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="primary")
             ) + (cand.viva_1 or 0) + (cand.practical_1 or 0)
             
-            # Calculate secondary total (secondary answers + viva_2 + practical_2)
             secondary_total = sum(
-                a.marks_obt or 0 for a in 
-                cand.answer_set.filter(question__exam_type__iexact="secondary")
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="secondary")
             ) + (cand.viva_2 or 0) + (cand.practical_2 or 0)
             
-            # Add to primary sheet
             ws_primary.append([
                 cand.s_no or "",
                 cand.name or "",
-                "",  # Placeholder for photograph
+                "",  # Photograph placeholder
                 cand.fathers_name or "",
+                cand.trade or "",
                 cand.dob or "",
                 cand.army_no or "",
                 cand.adhaar_no or "",
@@ -380,15 +467,15 @@ class CandidateAdmin(admin.ModelAdmin):
                 cand.training_center or "",
                 cand.district or "",
                 cand.state or "",
-                primary_total  # Primary percentage (total marks)
+                primary_total
             ])
             
-            # Add to secondary sheet
             ws_secondary.append([
                 cand.s_no or "",
                 cand.name or "",
-                "",  # Placeholder for photograph
+                "",  # Photograph placeholder
                 cand.fathers_name or "",
+                cand.trade or "",
                 cand.dob or "",
                 cand.army_no or "",
                 cand.adhaar_no or "",
@@ -399,42 +486,32 @@ class CandidateAdmin(admin.ModelAdmin):
                 cand.training_center or "",
                 cand.district or "",
                 cand.state or "",
-                secondary_total  # Secondary percentage (total marks)
+                secondary_total
             ])
         
-        # Apply borders to all cells
+        # Borders
         for row in ws_primary.iter_rows(min_row=1, max_row=ws_primary.max_row):
             for cell in row:
-                cell.border = thin_border
+                if cell.value is not None:
+                    cell.border = thin_border
         
         for row in ws_secondary.iter_rows(min_row=1, max_row=ws_secondary.max_row):
             for cell in row:
-                cell.border = thin_border
+                if cell.value is not None:
+                    cell.border = thin_border
         
-        # Auto-adjust column widths
-        for column in ws_primary.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = (max_length + 2)
-            ws_primary.column_dimensions[column_letter].width = adjusted_width
-        
-        for column in ws_secondary.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = (max_length + 2)
-            ws_secondary.column_dimensions[column_letter].width = adjusted_width
+        # Auto-adjust widths
+        for sheet in [ws_primary, ws_secondary]:
+            for column in sheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if cell.value and len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                sheet.column_dimensions[column_letter].width = max_length + 2
 
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -451,7 +528,7 @@ class CandidateAdmin(admin.ModelAdmin):
         return sum(a.marks_obt or 0 for a in obj.answer_set.filter(question__exam_type__iexact="secondary"))
 
     def grand_total(self, obj):
-        viva_practical = obj.viva_1 + obj.viva_2 + obj.practical_1 + obj.practical_2
+        viva_practical = (obj.viva_1 or 0) + (obj.viva_2 or 0) + (obj.practical_1 or 0) + (obj.practical_2 or 0)
         return self.total_primary(obj) + self.total_secondary(obj) + viva_practical
 
 
