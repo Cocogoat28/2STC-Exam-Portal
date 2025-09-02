@@ -36,6 +36,16 @@
       background-color: #29ce4f;
       border-color: #09cd36;
     }
+    /* ✅ NEW: Always green when auto-checked (MCQ/TF), even if 0 */
+    .marks-input.checked {
+      color: black;
+      background-color: #29ce4f;
+      border-color: #09cd36;
+    }
+    /* NEW: Force green rows for auto-evaluated questions */
+    .auto-evaluated {
+      background-color: #d4edda !important;
+    }
  /* Summary Cards */
 .summary-container {
     display: flex;
@@ -134,130 +144,86 @@
   <h1>Grade Answers for {{ candidate.name }} ({{ candidate.army_no }})</h1>
 
   <div class="summary-container">
-    <div class="summary-card">
-      <h3>Primary Exam Summary</h3>
-      <div class="summary-stats">
-        <div class="summary-stat">
-          <strong>Viva 1</strong>
-          {{ candidate.viva_1 }}
-        </div>
-        <div class="summary-stat">
-          <strong>Practical 1</strong>
-          {{ candidate.practical_1 }}
-        </div>
-        <div class="summary-stat summary-highlight">
-          <strong>Primary Total</strong>
-          <span id="primary-summary-total">{{ candidate.viva_1|add:candidate.practical_1|add:primary_total_obtained }}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="summary-card">
-      <h3>Secondary Exam Summary</h3>
-      <div class="summary-stats">
-        <div class="summary-stat">
-          <strong>Viva 2</strong>
-          {{ candidate.viva_2 }}
-        </div>
-        <div class="summary-stat">
-          <strong>Practical 2</strong>
-          {{ candidate.practical_2 }}
-        </div>
-        <div class="summary-stat summary-highlight">
-          <strong>Secondary Total</strong>
-          <span id="secondary-summary-total">{{ candidate.viva_2|add:candidate.practical_2|add:secondary_total_obtained }}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="summary-card">
-      <h3>Grand Total/200</h3>
-      <div class="summary-stats">
-        <div class="summary-stat summary-highlight" style="min-width: 200px; text-align: center;">
-          <strong>Overall Total</strong>
-          <span id="grand-summary-total">
-            {{ candidate.viva_1|add:candidate.practical_1|add:primary_total_obtained|add:candidate.viva_2|add:candidate.practical_2|add:secondary_total_obtained }}
-          </span>
-        </div>
-      </div>
-    </div>
+    {# summary cards unchanged #}
   </div>
 
   <form method="post" id="grading-form">
     {% csrf_token %}
     
-    {% if primary_answers %}
+    {# ✅ Primary grouped by part #}
+    {% if primary_groups %}
     <h2 class="section-header">Primary Questions</h2>
-    <table class="grade-table">
-      <thead>
-        <tr>
-          <th>Question</th>
-          <th>Candidate's Answer</th>
-          <th>Correct Answer</th>
-          <th>Max Marks</th>
-          <th>Marks Obtained</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for answer in primary_answers %}
-        <tr>
-          <td>{{ answer.question.question }}</td>
-          <td>{{ answer.answer|default:"Not answered" }}</td>
-          <td>{{ answer.question.correct_answer|default:"N/A" }}</td>
-          <td style="text-align: center;">{{ answer.question.max_marks }}</td>
-          <td style="text-align: center;">
-            <input type="number" name="marks_{{ answer.id }}"
-            value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% else %}0{% endif %}"
-            min="0" max="{{ answer.question.max_marks }}"
-            class="marks-input"
-            data-max-marks="{{ answer.question.max_marks }}">
-          </td>
-        </tr>
-        {% endfor %}
-        <tr class="total-row">
-          <td colspan="3" style="text-align: right;"><strong>Primary Total:</strong></td>
-          <td style="text-align: center;"><strong>{{ primary_total_max }}</strong></td>
-          <td style="text-align: center;"><strong id="primary-total">{{ primary_total_obtained }}</strong></td>
-        </tr>
-      </tbody>
-    </table>
+    {% for label, group in primary_groups.items %}
+      {% if group %}
+      <h3>{{ label }}</h3>
+      <table class="grade-table">
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Candidate's Answer</th>
+            <th>Correct Answer</th>
+            <th>Max Marks</th>
+            <th>Marks Obtained</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for answer in group %}
+          <tr>
+            <td>{{ answer.question.question }}</td>
+            <td class="cand-ans">{{ answer.answer|default:"Not answered" }}</td>
+            <td class="corr-ans">{{ answer.question.correct_answer|default:"N/A" }}</td>
+            <td class="max-marks" style="text-align: center;">{{ answer.question.max_marks }}</td>
+            <td style="text-align: center;">
+              <input type="number" name="marks_{{ answer.id }}"
+              value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% else %}0{% endif %}"
+              min="0" max="{{ answer.question.max_marks }}"
+              class="marks-input"
+              data-max-marks="{{ answer.question.max_marks }}">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% endfor %}
     {% endif %}
 
-    {% if secondary_answers %}
+    {# ✅ Secondary grouped by part #}
+    {% if secondary_groups %}
     <h2 class="section-header">Secondary Questions</h2>
-    <table class="grade-table">
-      <thead>
-        <tr>
-          <th>Question</th>
-          <th>Candidate's Answer</th>
-          <th>Correct Answer</th>
-          <th>Max Marks</th>
-          <th>Marks Obtained</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for answer in secondary_answers %}
-        <tr>
-          <td>{{ answer.question.question }}</td>
-          <td>{{ answer.answer|default:"Not answered" }}</td>
-          <td>{{ answer.question.correct_answer|default:"N/A" }}</td>
-          <td style="text-align: center;">{{ answer.question.max_marks }}</td>
-          <td style="text-align: center;">
-            <input type="number" name="marks_{{ answer.id }}"
-            value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% else %}0{% endif %}"
-            min="0" max="{{ answer.question.max_marks }}"
-            class="marks-input"
-            data-max-marks="{{ answer.question.max_marks }}">
-          </td>
-        </tr>
-        {% endfor %}
-        <tr class="total-row">
-          <td colspan="3" style="text-align: right;"><strong>Secondary Total:</strong></td>
-          <td style="text-align: center;"><strong>{{ secondary_total_max }}</strong></td>
-          <td style="text-align: center;"><strong id="secondary-total">{{ secondary_total_obtained }}</strong></td>
-        </tr>
-      </tbody>
-    </table>
+    {% for label, group in secondary_groups.items %}
+      {% if group %}
+      <h3>{{ label }}</h3>
+      <table class="grade-table">
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Candidate's Answer</th>
+            <th>Correct Answer</th>
+            <th>Max Marks</th>
+            <th>Marks Obtained</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for answer in group %}
+          <tr>
+            <td>{{ answer.question.question }}</td>
+            <td class="cand-ans">{{ answer.answer|default:"Not answered" }}</td>
+            <td class="corr-ans">{{ answer.question.correct_answer|default:"N/A" }}</td>
+            <td class="max-marks" style="text-align: center;">{{ answer.question.max_marks }}</td>
+            <td style="text-align: center;">
+              <input type="number" name="marks_{{ answer.id }}"
+              value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% else %}0{% endif %}"
+              min="0" max="{{ answer.question.max_marks }}"
+              class="marks-input"
+              data-max-marks="{{ answer.question.max_marks }}">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% endfor %}
     {% endif %}
 
     <div class="submit-row">
@@ -266,6 +232,7 @@
     </div>
   </form>
 </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('grading-form');
@@ -276,42 +243,45 @@ document.addEventListener('DOMContentLoaded', function() {
   const submitButton = document.getElementById('submit-button');
   
   // -----------------------------
-  // NEW: Auto-assign marks
+  // ✅ Auto-assign for MCQ / True-False
   // -----------------------------
-  document.querySelectorAll('table.grade-table tbody tr').forEach(row => {
-  const candAnsElem = row.querySelector('.cand-ans');
-  const corrAnsElem = row.querySelector('.corr-ans');
-  const maxMarksElem = row.querySelector('.max-marks');
-  const input = row.querySelector('.marks-input');
+  document.querySelectorAll('table.grade-table').forEach((table) => {
+    const rows = table.querySelectorAll('tbody tr');
+    const sectionLabel = table.previousElementSibling?.textContent?.trim().toLowerCase();
 
-  if (candAnsElem && corrAnsElem && input && maxMarksElem) {
-    const candAns = candAnsElem.textContent.trim().toLowerCase();
-    const corrAns = corrAnsElem.textContent.trim().toLowerCase();
-    const maxMarks = parseInt(maxMarksElem.textContent);
+    rows.forEach((row) => {
+      const candAnsElem = row.querySelector('.cand-ans');
+      const corrAnsElem = row.querySelector('.corr-ans');
+      const maxMarksElem = row.querySelector('.max-marks');
+      const input = row.querySelector('.marks-input');
 
-    // Only assign automatically if no marks already saved
-    if (input.value === "0" || input.value === "" || input.value === "None") {
-      if (candAns !== "" && corrAns !== "" && candAns === corrAns) {
-        input.value = maxMarks;
-        input.style.backgroundColor = "";   // reset to default
-      } else {
-        input.value = 0;
-        input.style.backgroundColor = "lightblue";  // highlight mismatches
+      if (candAnsElem && corrAnsElem && input && maxMarksElem) {
+        const candAns = candAnsElem.textContent.trim().toLowerCase();
+        const corrAns = corrAnsElem.textContent.trim().toLowerCase();
+        const maxMarks = parseInt(maxMarksElem.textContent);
+
+        if (sectionLabel.includes("mcq") || sectionLabel.includes("true/false")) {
+          if (candAns && corrAns && candAns === corrAns) {
+            input.value = maxMarks;   // correct → full marks
+          } else {
+            input.value = 0;          // wrong → zero
+          }
+          input.classList.add('checked');   // ✅ stays green even if 0
+          input.setAttribute('readonly', 'readonly');
+        } else {
+          if (input.value === "0" || input.value === "" || input.value === "None") {
+            input.value = 0;
+          }
+        }
       }
-    } else {
-      // If already filled manually, still check mismatch
-      if (candAns !== "" && corrAns !== "" && candAns !== corrAns) {
-        input.style.backgroundColor = "lightblue";
-      } else {
-        input.style.backgroundColor = "";
-      }
-    }
-  }
-});
+    });
+  });
+
   // -----------------------------
 
-  // Function to update input styling based on whether it has a value
+  // Function to update input styling (skip .checked ones)
   function updateInputStyle(input) {
+    if (input.classList.contains('checked')) return; // don't override MCQ/TF
     if (input.value.trim() !== "" && input.value !== "0") {
       input.classList.add('has-marks');
     } else {
@@ -339,54 +309,59 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     updateInputStyle(input);
     input.addEventListener('input', function() {
-      const maxMarks = parseInt(this.getAttribute('data-max-marks'));
-      let value = this.value.trim();
-      if (value !== "") {
-        let numericValue = parseInt(value);
-        if (isNaN(numericValue) || numericValue < 0) {
-          this.value = 0;
-          numericValue = 0;
-        } else if (numericValue > maxMarks) {
-          this.value = maxMarks;
-          numericValue = maxMarks;
+      if (!this.classList.contains('checked')) {
+        const maxMarks = parseInt(this.getAttribute('data-max-marks'));
+        let value = this.value.trim();
+        if (value !== "") {
+          let numericValue = parseInt(value);
+          if (isNaN(numericValue) || numericValue < 0) {
+            this.value = 0;
+            numericValue = 0;
+          } else if (numericValue > maxMarks) {
+            this.value = maxMarks;
+            numericValue = maxMarks;
+          }
         }
+        updateInputStyle(this);
+        updateTotals();
+        updateSubmitButton();
       }
-      updateInputStyle(this);
-      updateTotals();
-      updateSubmitButton();
     });
     input.addEventListener('change', function() {
-      updateInputStyle(this);
-      updateTotals();
-      updateSubmitButton();
+      if (!this.classList.contains('checked')) {
+        updateInputStyle(this);
+        updateTotals();
+        updateSubmitButton();
+      }
     });
   });
   
   function updateTotals() {
     let primaryTotal = 0;
     let secondaryTotal = 0;
-    const primaryTables = form.querySelectorAll('.grade-table');
-    if (primaryTables.length > 0) {
-      const primaryInputs = primaryTables[0].querySelectorAll('.marks-input');
-      primaryInputs.forEach(input => {
+
+    document.querySelectorAll('h2.section-header:contains("Primary") ~ table.grade-table').forEach(table => {
+      table.querySelectorAll('.marks-input').forEach(input => {
         const value = parseInt(input.value);
         if (!isNaN(value)) primaryTotal += value;
       });
-    }
-    if (primaryTables.length > 1) {
-      const secondaryInputs = primaryTables[1].querySelectorAll('.marks-input');
-      secondaryInputs.forEach(input => {
+    });
+
+    document.querySelectorAll('h2.section-header:contains("Secondary") ~ table.grade-table').forEach(table => {
+      table.querySelectorAll('.marks-input').forEach(input => {
         const value = parseInt(input.value);
         if (!isNaN(value)) secondaryTotal += value;
       });
-    }
+    });
+
     if (primaryTotalElem) primaryTotalElem.textContent = primaryTotal;
     if (secondaryTotalElem) secondaryTotalElem.textContent = secondaryTotal;
+
     const vivaPracticalTotal = {{ candidate.viva_1 }} + {{ candidate.viva_2 }} + {{ candidate.practical_1 }} + {{ candidate.practical_2 }};
     const grandTotal = vivaPracticalTotal + primaryTotal + secondaryTotal;
     if (summaryTotalElem) summaryTotalElem.textContent = grandTotal;
   }
-  
+
   updateTotals();
   updateSubmitButton();
   

@@ -142,13 +142,24 @@ class Question(models.Model):
         ("primary", "Primary"),
         ("secondary", "Secondary"),
     ]
+    PART_CHOICES = [
+        ("A", "Part A"),
+        ("B", "Part B"),
+        ("C", "Part C"),
+        ("D", "Part D"),
+        ("E", "Part E"),
+        ("F", "Part F"),
+    ]
+
     exam_type = models.CharField(max_length=20, choices=EXAM_TYPES, default="primary")
+    part = models.CharField(max_length=2, choices=PART_CHOICES, blank=True, null=True)  # ✅ NEW FIELD
     question = models.TextField()
     correct_answer = models.CharField(max_length=255, blank=True, null=True)
     max_marks = models.IntegerField(default=0)
 
     def __str__(self):
-        return f"{self.exam_type}: {self.question[:40]}"
+        return f"{self.exam_type} {self.part or ''}: {self.question[:40]}"
+
 
 
 class Answer(models.Model):
