@@ -29,6 +29,7 @@ class ExamConfig(models.Model):
 
 
 class Candidate(models.Model):
+    is_checked = models.BooleanField(default=False)
     TRADE_CHOICES = [
         ('TTC', 'TTC'),
         ('OCC', 'OCC'),
@@ -154,8 +155,7 @@ class Answer(models.Model):
     candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     answer = models.TextField(blank=True, null=True)
-    marks_obt = models.IntegerField(default=0)
-    
+    marks_obt = models.IntegerField( null=True, blank=True)
 
     def __str__(self):
         return f"{self.candidate.army_no} - {self.question.exam_type}"

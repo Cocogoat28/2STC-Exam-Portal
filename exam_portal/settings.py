@@ -88,9 +88,9 @@ STATICFILES_DIRS = [
 JAZZMIN_SETTINGS = {
     "site_title": "Exam Portal",
     "site_header": "Admin Portal",
-    "welcome_sign": "JAI HIND!",
+    "welcome_sign": "JAI HIND! Welcome to 2 Signal Training Centre Online Exam Portal",
     "copyright": "Developed by SLOG Solutions Pvt Ltd and 2STC",
-    "site_brand": "Admin Portal",
+    "site_brand": "2STC Admin Portal",
 
     # Logo settings
     "site_logo": "img/logo.png",           # top-left logo in header

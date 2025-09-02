@@ -86,8 +86,8 @@ class AnswerInline(admin.TabularInline):
 class CandidateAdmin(admin.ModelAdmin):
     change_list_template = "admin/exams/candidate/change_list.html"
     change_form_template = "admin/exams/candidate/change_form.html"
-    list_display = ("army_no", "name","center", "trade", "total_primary", "total_secondary", "grand_total")  # Added trade
-    list_filter = ("center","trade")  # Added trade filter
+    list_display = ("army_no", "name","center", "trade", "total_primary", "total_secondary", "grand_total","is_checked")  # Added trade
+    list_filter = ("center","trade","is_checked")  # Added trade filter
     search_fields = ("army_no", "name","rank", "fathers_name", "district", "state", "trade")  # Added trade
 
     def get_urls(self):
@@ -122,6 +122,7 @@ class CandidateAdmin(admin.ModelAdmin):
         return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
     # ---------- Grade Answers View ----------
+    # ---------- Grade Answers View ----------
     def grade_answers_view(self, request, candidate_id):
         if not request.user.has_perm('exams.change_answer'):
             return HttpResponseForbidden("You don't have permission to grade answers")
@@ -129,7 +130,7 @@ class CandidateAdmin(admin.ModelAdmin):
         cand = Candidate.objects.get(pk=candidate_id)
         answers = Answer.objects.filter(candidate=cand).select_related("question")
         
-        # 🔥 Auto-marking logic
+        # Auto-marking logic
         for ans in answers:
             cand_ans = (ans.answer or "").strip().lower()
             corr_raw = (ans.question.correct_answer or "").strip().lower()
@@ -145,17 +146,29 @@ class CandidateAdmin(admin.ModelAdmin):
         secondary_answers = [a for a in answers if a.question.exam_type.lower() == "secondary"]
         
         if request.method == "POST":
-            # Process the form submission
+    # Process the form submission
             for answer in answers:
                 field_name = f"marks_{answer.id}"
                 if field_name in request.POST:
                     try:
-                        new_marks = int(request.POST[field_name])
-                        if 0 <= new_marks <= answer.question.max_marks:
-                            answer.marks_obt = new_marks
-                            answer.save()
+                        marks_value = request.POST[field_name].strip()
+                        if marks_value == "":
+                            answer.marks_obt = None
+                        else:
+                            new_marks = int(marks_value)
+                            if 0 <= new_marks <= answer.question.max_marks:
+                                answer.marks_obt = new_marks
+                        answer.save()
                     except ValueError:
                         pass
+
+            # ✅ mark candidate as checked
+            cand.is_checked = True
+            cand.save()
+
+            self.message_user(request, "Grades updated successfully", level=messages.SUCCESS)
+            return redirect(f"{reverse('admin:exams_candidate_change', args=[candidate_id])}?t={time.time()}")
+
             
             # Force refresh of the candidate object to ensure latest data
             cand = Candidate.objects.get(pk=candidate_id)
@@ -169,9 +182,18 @@ class CandidateAdmin(admin.ModelAdmin):
         secondary_total_obtained = sum(a.marks_obt or 0 for a in secondary_answers)
         secondary_total_max = sum(a.question.max_marks for a in secondary_answers)
         
+
+        # Check if all marks are assigned (not None and not 0)
+        all_marks_assigned = all(
+        answer.marks_obt is not None and answer.marks_obt != 0 
+        for answer in answers
+        )
+    
+
+
         context = {
             **self.admin_site.each_context(request),
-            "title": f"Grade Answers - {cand.name} ({cand.army_no}) - {cand.trade}",  # Added trade
+            "title": f"Grade Answers - {cand.name} ({cand.army_no}) - {cand.trade}",
             "candidate": cand,
             "primary_answers": primary_answers,
             "secondary_answers": secondary_answers,
@@ -179,6 +201,7 @@ class CandidateAdmin(admin.ModelAdmin):
             "primary_total_max": primary_total_max,
             "secondary_total_obtained": secondary_total_obtained,
             "secondary_total_max": secondary_total_max,
+            "all_marks_assigned": all_marks_assigned,
             "opts": self.model._meta,
         }
         

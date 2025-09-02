@@ -1,0 +1,289 @@
+/* Custom Admin CSS for 2STC Exam Portal */
+
+:root {
+    --primary: #3c8dbc;
+    --secondary: #605ca8;
+    --success: #00a65a;
+    --info: #555555;
+    --warning: #f39c12;
+    --danger: #dd4b39;
+    --light: #f4f4f4;
+    --dark: #222222;
+}
+
+/* Background image for the entire application */
+body {
+    background-image: url('https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+
+/* Semi-transparent overlay for better readability */
+.wrapper {
+    background-color: rgba(255, 255, 255, 0.95);
+    min-height: 100vh;
+}
+
+/* Header and branding */
+.main-header .navbar-brand {
+    font-weight: bold;
+    font-size: 1.4rem;
+    padding: 15px;
+}
+
+/* Login page styling */
+.login-page, .register-page {
+    background-image: url('https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+}
+
+.login-box, .register-box {
+    width: 420px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.login-logo, .register-logo {
+    margin-bottom: 20px;
+    font-size: 2.2rem;
+    font-weight: 400;
+}
+
+.login-card-body, .register-card-body {
+    padding: 30px;
+    border-top: 0;
+    color: #666;
+    border-radius: 0 0 4px 4px;
+}
+
+.login-box-msg, .register-box-msg {
+    margin: 0;
+    text-align: center;
+    padding: 0 20px 20px 20px;
+    font-size: 1.1rem;
+    font-weight: 300;
+}
+
+/* Sidebar styling */
+.sidebar {
+    padding-top: 10px;
+    background-color: rgba(34, 45, 50, 0.95);
+}
+
+.sidebar-menu li.header {
+    padding: 10px 25px 10px 15px;
+    font-size: 0.9rem;
+    color: #4b646f;
+    background: #1a2226;
+}
+
+.sidebar-menu > li > a {
+    padding: 12px 15px;
+    border-left: 3px solid transparent;
+    font-weight: 500;
+}
+
+.sidebar-menu > li:hover > a,
+.sidebar-menu > li.active > a {
+    color: #fff;
+    background: #1e282c;
+    border-left-color: var(--primary);
+}
+
+.sidebar-menu > li > .treeview-menu {
+    margin: 0;
+    background: #2c3b41;
+}
+
+.sidebar-menu li > a > .fa,
+.sidebar-menu li > a > .fas,
+.sidebar-menu li > a > .far,
+.sidebar-menu li > a > .fab {
+    width: 20px;
+    margin-right: 8px;
+    text-align: center;
+}
+
+/* Content header */
+.content-header {
+    padding: 20px 20px 10px 20px;
+    background-color: transparent;
+}
+
+.content-header > h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: 500;
+}
+
+/* Box styling */
+.box {
+    border-top: 3px solid var(--primary);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 4px;
+}
+
+.box-header {
+    color: #444;
+    display: block;
+    padding: 15px;
+    position: relative;
+    border-bottom: 1px solid #f4f4f4;
+}
+
+.box-header.with-border {
+    border-bottom: 1px solid #f4f4f4;
+}
+
+.box-title {
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
+/* Button styling */
+.btn {
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: var(--primary);
+    border-color: #367fa9;
+}
+
+.btn-primary:hover {
+    background-color: #367fa9;
+    border-color: #2d708c;
+}
+
+/* Table styling */
+.table th {
+    background-color: #f9f9f9;
+    font-weight: 600;
+}
+
+/* Dashboard specific styling */
+.dashboard-card {
+    border-radius: 4px;
+    position: relative;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+    background-color: rgba(255, 255, 255, 0.95);
+}
+
+.dashboard-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.16), 0 4px 8px rgba(0,0,0,0.23);
+}
+
+.dashboard-card .inner {
+    padding: 15px;
+}
+
+.dashboard-card h3 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0 0 5px 0;
+}
+
+.dashboard-card p {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.dashboard-card .icon {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 2.5rem;
+    opacity: 0.3;
+}
+
+/* Custom colors for dashboard cards */
+.card-primary {
+    background-color: var(--primary);
+    color: white;
+}
+
+.card-success {
+    background-color: var(--success);
+    color: white;
+}
+
+.card-info {
+    background-color: var(--info);
+    color: white;
+}
+
+.card-warning {
+    background-color: var(--warning);
+    color: white;
+}
+
+/* Form styling */
+.form-control {
+    border-radius: 3px;
+    box-shadow: none;
+    border-color: #d2d6de;
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+.form-control:focus {
+    border-color: var(--primary);
+    box-shadow: none;
+    background-color: #fff;
+}
+
+/* Pagination styling */
+.pagination > .active > a,
+.pagination > .active > a:focus,
+.pagination > .active > a:hover,
+.pagination > .active > span,
+.pagination > .active > span:focus,
+.pagination > .active > span:hover {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* Custom welcome message */
+.welcome-admin {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.welcome-admin h4 {
+    margin: 0 0 5px 0;
+    font-weight: 500;
+}
+
+.welcome-admin p {
+    margin: 0;
+    opacity: 0.9;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .login-box, .register-box {
+        width: 90%;
+        margin-top: 20px;
+    }
+    
+    .main-sidebar {
+        padding-top: 100px;
+    }
+    
+    body {
+        background-attachment: scroll;
+    }
+}
