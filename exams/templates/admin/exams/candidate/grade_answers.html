@@ -61,6 +61,10 @@
       margin-bottom: 5px;
       color: #495057;
     }
+    .summary-highlight {
+      background-color: #e7f3ff;
+      font-weight: bold;
+    }
     .section-header {
       border-bottom: 2px solid #007bff;
       padding-bottom: 10px;
@@ -106,28 +110,53 @@
 <div id="content-main">
   <h1>Grade Answers for {{ candidate.name }} ({{ candidate.army_no }})</h1>
   
+  <!-- Primary Exam Summary -->
   <div class="summary-card">
-    <h3>Score Summary</h3>
+    <h3>Primary Exam Summary</h3>
     <div class="summary-stats">
       <div class="summary-stat">
         <strong>Viva 1</strong>
         {{ candidate.viva_1 }}
       </div>
       <div class="summary-stat">
-        <strong>Viva 2</strong>
-        {{ candidate.viva_2 }}
-      </div>
-      <div class="summary-stat">
         <strong>Practical 1</strong>
         {{ candidate.practical_1 }}
+      </div>
+      <div class="summary-stat summary-highlight">
+        <strong>Primary Total</strong>
+        <span id="primary-summary-total">{{ candidate.viva_1|add:candidate.practical_1|add:primary_total_obtained }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secondary Exam Summary -->
+  <div class="summary-card">
+    <h3>Secondary Exam Summary</h3>
+    <div class="summary-stats">
+      <div class="summary-stat">
+        <strong>Viva 2</strong>
+        {{ candidate.viva_2 }}
       </div>
       <div class="summary-stat">
         <strong>Practical 2</strong>
         {{ candidate.practical_2 }}
       </div>
-      <div class="summary-stat" style="background-color: #e7f3ff;">
-        <strong>Total</strong>
-        <span id="summary-total">{{ candidate.grand_total }}</span>
+      <div class="summary-stat summary-highlight">
+        <strong>Secondary Total</strong>
+        <span id="secondary-summary-total">{{ candidate.viva_2|add:candidate.practical_2|add:secondary_total_obtained }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grand Total -->
+  <div class="summary-card">
+    <h3>Grand Total</h3>
+    <div class="summary-stats">
+      <div class="summary-stat summary-highlight" style="min-width: 200px; text-align: center;">
+        <strong>Overall Total</strong>
+        <span id="grand-summary-total">
+          {{ candidate.viva_1|add:candidate.practical_1|add:primary_total_obtained|add:candidate.viva_2|add:candidate.practical_2|add:secondary_total_obtained }}
+        </span>
       </div>
     </div>
   </div>
@@ -164,7 +193,7 @@
         </tr>
         {% endfor %}
         <tr class="total-row">
-          <td colspan="3" style="text-align: right;"><strong>Primary Total:</strong></td>
+          <td colspan="3" style="text-align: right;"><strong>Primary Total (Questions):</strong></td>
           <td style="text-align: center;"><strong>{{ primary_total_max }}</strong></td>
           <td style="text-align: center;"><strong id="primary-total">{{ primary_total_obtained }}</strong></td>
         </tr>
@@ -201,7 +230,7 @@
         </tr>
         {% endfor %}
         <tr class="total-row">
-          <td colspan="3" style="text-align: right;"><strong>Secondary Total:</strong></td>
+          <td colspan="3" style="text-align: right;"><strong>Secondary Total (Questions):</strong></td>
           <td style="text-align: center;"><strong>{{ secondary_total_max }}</strong></td>
           <td style="text-align: center;"><strong id="secondary-total">{{ secondary_total_obtained }}</strong></td>
         </tr>
@@ -222,32 +251,27 @@ document.addEventListener('DOMContentLoaded', function() {
   const marksInputs = form.querySelectorAll('.marks-input');
   const primaryTotalElem = document.getElementById('primary-total');
   const secondaryTotalElem = document.getElementById('secondary-total');
-  const summaryTotalElem = document.getElementById('summary-total');
+  const primarySummaryElem = document.getElementById('primary-summary-total');
+  const secondarySummaryElem = document.getElementById('secondary-summary-total');
+  const grandSummaryElem = document.getElementById('grand-summary-total');
   
-  // Initialize input fields
   marksInputs.forEach(input => {
     if (input.value.trim() !== "") {
-      input.classList.add('has-marks'); // includes "0" as green
+      input.classList.add('has-marks');
     }
   });
   
-  // Calculate initial totals
   updateTotals();
   
-  // Add event listeners to all mark inputs
   marksInputs.forEach(input => {
     input.addEventListener('input', function() {
       const maxMarks = parseInt(this.getAttribute('data-max-marks'));
       let value = parseInt(this.value);
-
-      // If empty, remove green
       if (this.value.trim() === "") {
         this.classList.remove('has-marks');
       } else {
-        // validate range
         if (value < 0) this.value = 0;
         if (value > maxMarks) this.value = maxMarks;
-        // add green even if 0
         this.classList.add('has-marks');
       }
       updateTotals();
@@ -258,26 +282,26 @@ document.addEventListener('DOMContentLoaded', function() {
     let primaryTotal = 0;
     let secondaryTotal = 0;
     
-    // Calculate primary total
     const primaryInputs = form.querySelectorAll('.grade-table:first-of-type .marks-input');
     primaryInputs.forEach(input => {
       primaryTotal += parseInt(input.value) || 0;
     });
     
-    // Calculate secondary total
     const secondaryInputs = form.querySelectorAll('.grade-table:last-of-type .marks-input');
     secondaryInputs.forEach(input => {
       secondaryTotal += parseInt(input.value) || 0;
     });
     
-    // Update displayed totals
     if (primaryTotalElem) primaryTotalElem.textContent = primaryTotal;
     if (secondaryTotalElem) secondaryTotalElem.textContent = secondaryTotal;
     
-    // Update summary total (viva + practical + question totals)
-    const vivaPracticalTotal = {{ candidate.viva_1 }} + {{ candidate.viva_2 }} + {{ candidate.practical_1 }} + {{ candidate.practical_2 }};
-    const grandTotal = vivaPracticalTotal + primaryTotal + secondaryTotal;
-    if (summaryTotalElem) summaryTotalElem.textContent = grandTotal;
+    const primaryGrand = {{ candidate.viva_1 }} + {{ candidate.practical_1 }} + primaryTotal;
+    const secondaryGrand = {{ candidate.viva_2 }} + {{ candidate.practical_2 }} + secondaryTotal;
+    const overallGrand = primaryGrand + secondaryGrand;
+    
+    if (primarySummaryElem) primarySummaryElem.textContent = primaryGrand;
+    if (secondarySummaryElem) secondarySummaryElem.textContent = secondaryGrand;
+    if (grandSummaryElem) grandSummaryElem.textContent = overallGrand;
   }
 });
 </script>
