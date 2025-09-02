@@ -1,5 +1,33 @@
 from django.db import models
 
+
+class Trade(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class ExamConfig(models.Model):
+    EXAM_CHOICES = (
+        ("Primary", "Primary"),
+        ("Secondary", "Secondary"),
+    )
+
+    trade = models.ForeignKey(Trade, on_delete=models.CASCADE, related_name="exam_configs")
+    exam_type = models.CharField(max_length=20, choices=EXAM_CHOICES)
+
+    max_theory_marks = models.PositiveIntegerField(default=0)
+    max_practical_marks = models.PositiveIntegerField(default=0)
+    max_viva_marks = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.trade.name} - {self.exam_type}"
+
+    def total_marks(self):
+        return self.max_theory_marks + self.max_practical_marks + self.max_viva_marks
+
+
 class Candidate(models.Model):
     TRADE_CHOICES = [
         ('TTC', 'TTC'),
@@ -45,9 +73,9 @@ class Candidate(models.Model):
         ('Mathura', 'Mathura'), ('Karu', 'Karu'),
     ]
 
-    s_no = models.IntegerField(null=True, blank=True)  
+    s_no = models.IntegerField(null=True, blank=True)
     name = models.CharField(max_length=255, blank=True, null=True)
-    center = models.CharField(max_length=255, choices=CENTER_CHOICES, blank=True, null=True)  # 🔥 Updated with choices
+    center = models.CharField(max_length=255, choices=CENTER_CHOICES, blank=True, null=True)
     photo = models.ImageField(upload_to="photos/", blank=True, null=True)
     fathers_name = models.CharField(max_length=255, null=True, blank=True)
     trade = models.CharField(max_length=50, choices=TRADE_CHOICES, blank=True, null=True)  # Existing trade choices
@@ -81,6 +109,31 @@ class Candidate(models.Model):
 
     def grand_total(self):
         return self.total_primary() + self.total_secondary() + self.viva_practical_total()
+
+    # ✅ New helper: calculate percentage using ExamConfig
+    def percentage(self, exam_type="Primary"):
+        from django.core.exceptions import ObjectDoesNotExist
+
+        try:
+            trade_obj = Trade.objects.get(name=self.trade)
+            config = trade_obj.exam_configs.get(exam_type=exam_type)
+        except (Trade.DoesNotExist, ObjectDoesNotExist):
+            return 0
+
+        if exam_type == "Primary":
+            scored = self.total_primary() + self.viva_1 + self.practical_1
+            max_marks = (
+                config.max_theory_marks + config.max_viva_marks + config.max_practical_marks
+            )
+        else:  # Secondary
+            scored = self.total_secondary() + self.viva_2 + self.practical_2
+            max_marks = (
+                config.max_theory_marks + config.max_viva_marks + config.max_practical_marks
+            )
+
+        if max_marks == 0:
+            return 0
+        return round((scored / max_marks) * 100, 2)
 
 
 class Question(models.Model):

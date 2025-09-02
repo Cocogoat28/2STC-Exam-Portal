@@ -10,6 +10,7 @@ import time
 
 from .models import Candidate, Question, Answer
 from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Font, Alignment, Border, Side
 
 
 # ------------ Excel helpers ------------
@@ -299,33 +300,146 @@ class CandidateAdmin(admin.ModelAdmin):
     # ---------- Export ----------
     def export_results_excel_view(self, request):
         wb = Workbook()
-        ws = wb.active
-        ws.title = "Results"
-
-        headers = [
-            "s_no", "name","center", "fathers_name", "dob","rank", "trade", "army_no", "adhaar_no",  # Added trade
-            "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
-            "training_center", "district", "state", "viva_1", "viva_2", "practical_1", "practical_2",
-            "exam_type", "question", "answer", "correct_answer", "max_marks", "marks_obt",
+        
+        # Create Primary sheet
+        ws_primary = wb.active
+        ws_primary.title = "PRIMARY MARKS STATEMENT"
+        
+        # Create Secondary sheet
+        ws_secondary = wb.create_sheet(title="SECONDARY MARKS STATEMENT")
+        
+        # Define headers for both sheets
+        primary_headers = [
+            "S No", "Name of Candidate", "Photograph", "Father's Name", "DOB", 
+            "Enrolment No", "Aadhar Number", "Name of Qualification", 
+            "Duration of Qualification", "Credits", "NSQF Level", "Training Centre", 
+            "District", "State", "Percentage"
         ]
-        ws.append(headers)
-
-        for ans in Answer.objects.select_related("candidate", "question").all().order_by(
-            "candidate__army_no", "question__id"
-        ):
-            c, q = ans.candidate, ans.question
-            ws.append([
-                c.s_no, c.name, c.center, c.fathers_name, c.dob,c.rank, c.trade, c.army_no, c.adhaar_no,  # Added trade
-                c.name_of_qualification, c.duration_of_qualification, c.credits, c.nsqf_level,
-                c.training_center, c.district, c.state, c.viva_1, c.viva_2,
-                c.practical_1, c.practical_2,
-                q.exam_type, q.question, ans.answer, q.correct_answer, q.max_marks, ans.marks_obt,
+        
+        secondary_headers = [
+            "S No", "Name of Candidate", "Photograph", "Father's Name", "DOB", 
+            "Enrolment No", "Aadhar Number", "Name of Qualification", 
+            "Duration of Qualification", "Credits", "NSQF Level", "Training Centre", 
+            "District", "State", "Percentage"
+        ]
+        
+        # Add headers to both sheets
+        ws_primary.append(primary_headers)
+        ws_secondary.append(secondary_headers)
+        
+        # Style the headers
+        bold_font = Font(bold=True)
+        center_aligned = Alignment(horizontal='center')
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Apply styling to headers
+        for row in ws_primary.iter_rows(min_row=1, max_row=1):
+            for cell in row:
+                cell.font = bold_font
+                cell.alignment = center_aligned
+                cell.border = thin_border
+        
+        for row in ws_secondary.iter_rows(min_row=1, max_row=1):
+            for cell in row:
+                cell.font = bold_font
+                cell.alignment = center_aligned
+                cell.border = thin_border
+        
+        # Process candidates for both sheets
+        for cand in Candidate.objects.all():
+            # Calculate primary total (primary answers + viva_1 + practical_1)
+            primary_total = sum(
+                a.marks_obt or 0 for a in 
+                cand.answer_set.filter(question__exam_type__iexact="primary")
+            ) + (cand.viva_1 or 0) + (cand.practical_1 or 0)
+            
+            # Calculate secondary total (secondary answers + viva_2 + practical_2)
+            secondary_total = sum(
+                a.marks_obt or 0 for a in 
+                cand.answer_set.filter(question__exam_type__iexact="secondary")
+            ) + (cand.viva_2 or 0) + (cand.practical_2 or 0)
+            
+            # Add to primary sheet
+            ws_primary.append([
+                cand.s_no or "",
+                cand.name or "",
+                "",  # Placeholder for photograph
+                cand.fathers_name or "",
+                cand.dob or "",
+                cand.army_no or "",
+                cand.adhaar_no or "",
+                cand.name_of_qualification or "",
+                cand.duration_of_qualification or "",
+                cand.credits or 0,
+                cand.nsqf_level or 0,
+                cand.training_center or "",
+                cand.district or "",
+                cand.state or "",
+                primary_total  # Primary percentage (total marks)
             ])
+            
+            # Add to secondary sheet
+            ws_secondary.append([
+                cand.s_no or "",
+                cand.name or "",
+                "",  # Placeholder for photograph
+                cand.fathers_name or "",
+                cand.dob or "",
+                cand.army_no or "",
+                cand.adhaar_no or "",
+                cand.name_of_qualification or "",
+                cand.duration_of_qualification or "",
+                cand.credits or 0,
+                cand.nsqf_level or 0,
+                cand.training_center or "",
+                cand.district or "",
+                cand.state or "",
+                secondary_total  # Secondary percentage (total marks)
+            ])
+        
+        # Apply borders to all cells
+        for row in ws_primary.iter_rows(min_row=1, max_row=ws_primary.max_row):
+            for cell in row:
+                cell.border = thin_border
+        
+        for row in ws_secondary.iter_rows(min_row=1, max_row=ws_secondary.max_row):
+            for cell in row:
+                cell.border = thin_border
+        
+        # Auto-adjust column widths
+        for column in ws_primary.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws_primary.column_dimensions[column_letter].width = adjusted_width
+        
+        for column in ws_secondary.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            ws_secondary.column_dimensions[column_letter].width = adjusted_width
 
         resp = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        resp["Content-Disposition"] = 'attachment; filename="results.xlsx"'
+        resp["Content-Disposition"] = 'attachment; filename="marks_statements.xlsx"'
         wb.save(resp)
         return resp
 
