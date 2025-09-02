@@ -87,7 +87,7 @@ class Candidate(models.Model):
     name_of_qualification = models.CharField(max_length=255, blank=True, null=True)
     duration_of_qualification = models.CharField(max_length=50, blank=True, null=True)
     credits = models.IntegerField(default=0)
-    nsqf_level = models.IntegerField(default=0)
+    nsqf_level = models.FloatField(default=0)
     training_center = models.CharField(max_length=255, blank=True, null=True)
     district = models.CharField(max_length=255, blank=True, null=True)
     state = models.CharField(max_length=255, blank=True, null=True)

@@ -275,6 +275,41 @@ document.addEventListener('DOMContentLoaded', function() {
   const summaryTotalElem = document.getElementById('summary-total');
   const submitButton = document.getElementById('submit-button');
   
+  // -----------------------------
+  // NEW: Auto-assign marks
+  // -----------------------------
+  document.querySelectorAll('table.grade-table tbody tr').forEach(row => {
+  const candAnsElem = row.querySelector('.cand-ans');
+  const corrAnsElem = row.querySelector('.corr-ans');
+  const maxMarksElem = row.querySelector('.max-marks');
+  const input = row.querySelector('.marks-input');
+
+  if (candAnsElem && corrAnsElem && input && maxMarksElem) {
+    const candAns = candAnsElem.textContent.trim().toLowerCase();
+    const corrAns = corrAnsElem.textContent.trim().toLowerCase();
+    const maxMarks = parseInt(maxMarksElem.textContent);
+
+    // Only assign automatically if no marks already saved
+    if (input.value === "0" || input.value === "" || input.value === "None") {
+      if (candAns !== "" && corrAns !== "" && candAns === corrAns) {
+        input.value = maxMarks;
+        input.style.backgroundColor = "";   // reset to default
+      } else {
+        input.value = 0;
+        input.style.backgroundColor = "lightblue";  // highlight mismatches
+      }
+    } else {
+      // If already filled manually, still check mismatch
+      if (candAns !== "" && corrAns !== "" && candAns !== corrAns) {
+        input.style.backgroundColor = "lightblue";
+      } else {
+        input.style.backgroundColor = "";
+      }
+    }
+  }
+});
+  // -----------------------------
+
   // Function to update input styling based on whether it has a value
   function updateInputStyle(input) {
     if (input.value.trim() !== "" && input.value !== "0") {
@@ -284,44 +319,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Function to check if all marks are assigned (not 0)
   function checkAllMarksAssigned() {
     let allAssigned = true;
-    
     marksInputs.forEach(input => {
       if (input.value === "0" || input.value.trim() === "") {
         allAssigned = false;
       }
     });
-    
     return allAssigned;
   }
   
-  // Function to update submit button state
   function updateSubmitButton() {
-    if (checkAllMarksAssigned()) {
-      submitButton.disabled = false;
-    } else {
-      submitButton.disabled = true;
-    }
+    submitButton.disabled = !checkAllMarksAssigned();
   }
   
-  // Initialize all input fields
   marksInputs.forEach(input => {
-    // Set default value to 0 if empty
     if (input.value.trim() === "" || input.value === "None" || input.value === "null") {
       input.value = "0";
     }
-    
-    // Apply styling based on value
     updateInputStyle(input);
-    
-    // Add event listeners
     input.addEventListener('input', function() {
       const maxMarks = parseInt(this.getAttribute('data-max-marks'));
       let value = this.value.trim();
-      
-      // Validate input
       if (value !== "") {
         let numericValue = parseInt(value);
         if (isNaN(numericValue) || numericValue < 0) {
@@ -332,12 +351,10 @@ document.addEventListener('DOMContentLoaded', function() {
           numericValue = maxMarks;
         }
       }
-      
       updateInputStyle(this);
       updateTotals();
       updateSubmitButton();
     });
-    
     input.addEventListener('change', function() {
       updateInputStyle(this);
       updateTotals();
@@ -345,56 +362,39 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
-  // Calculate and update totals
   function updateTotals() {
     let primaryTotal = 0;
     let secondaryTotal = 0;
-    
-    // Calculate primary total
     const primaryTables = form.querySelectorAll('.grade-table');
     if (primaryTables.length > 0) {
       const primaryInputs = primaryTables[0].querySelectorAll('.marks-input');
       primaryInputs.forEach(input => {
         const value = parseInt(input.value);
-        if (!isNaN(value)) {
-          primaryTotal += value;
-        }
+        if (!isNaN(value)) primaryTotal += value;
       });
     }
-    
-    // Calculate secondary total
     if (primaryTables.length > 1) {
       const secondaryInputs = primaryTables[1].querySelectorAll('.marks-input');
       secondaryInputs.forEach(input => {
         const value = parseInt(input.value);
-        if (!isNaN(value)) {
-          secondaryTotal += value;
-        }
+        if (!isNaN(value)) secondaryTotal += value;
       });
     }
-    
-    // Update displayed totals
     if (primaryTotalElem) primaryTotalElem.textContent = primaryTotal;
     if (secondaryTotalElem) secondaryTotalElem.textContent = secondaryTotal;
-    
-    // Update summary total (viva + practical + question totals)
     const vivaPracticalTotal = {{ candidate.viva_1 }} + {{ candidate.viva_2 }} + {{ candidate.practical_1 }} + {{ candidate.practical_2 }};
     const grandTotal = vivaPracticalTotal + primaryTotal + secondaryTotal;
     if (summaryTotalElem) summaryTotalElem.textContent = grandTotal;
   }
   
-  // Initialize totals and submit button state
   updateTotals();
   updateSubmitButton();
   
-  // Add form validation
   form.addEventListener('submit', function(e) {
     let hasErrors = false;
-    
     marksInputs.forEach(input => {
       const value = input.value.trim();
       const maxMarks = parseInt(input.getAttribute('data-max-marks'));
-      
       if (value !== "") {
         const numericValue = parseInt(value);
         if (isNaN(numericValue) || numericValue < 0 || numericValue > maxMarks) {
@@ -405,7 +405,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     });
-    
     if (hasErrors) {
       e.preventDefault();
       alert('Please fix the invalid marks before submitting.');
