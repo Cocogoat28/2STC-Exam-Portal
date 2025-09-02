@@ -103,6 +103,13 @@
       background-color: #e9ecef;
       font-weight: bold;
     }
+    .check-review {
+      transform: scale(1.3);
+      cursor: pointer;
+    }
+    .check-review.checked {
+      accent-color: green;
+    }
   </style>
 {% endblock %}
 
@@ -174,6 +181,7 @@
           <th>Correct Answer</th>
           <th>Max Marks</th>
           <th>Marks Obtained</th>
+          <th>Reviewed</th>
         </tr>
       </thead>
       <tbody>
@@ -190,12 +198,15 @@
             class="marks-input"
             data-max-marks="{{ answer.question.max_marks }}">
           </td>
+          <td style="text-align: center;">
+            <input type="checkbox" class="check-review">
+          </td>
         </tr>
         {% endfor %}
         <tr class="total-row">
-          <td colspan="3" style="text-align: right;"><strong>Primary Total (Questions):</strong></td>
-          <td style="text-align: center;"><strong>{{ primary_total_max }}</strong></td>
+          <td colspan="4" style="text-align: right;"><strong>Primary Total (Questions):</strong></td>
           <td style="text-align: center;"><strong id="primary-total">{{ primary_total_obtained }}</strong></td>
+          <td></td>
         </tr>
       </tbody>
     </table>
@@ -211,6 +222,7 @@
           <th>Correct Answer</th>
           <th>Max Marks</th>
           <th>Marks Obtained</th>
+          <th>Reviewed</th>
         </tr>
       </thead>
       <tbody>
@@ -227,12 +239,15 @@
             class="marks-input"
             data-max-marks="{{ answer.question.max_marks }}">
           </td>
+          <td style="text-align: center;">
+            <input type="checkbox" class="check-review">
+          </td>
         </tr>
         {% endfor %}
         <tr class="total-row">
-          <td colspan="3" style="text-align: right;"><strong>Secondary Total (Questions):</strong></td>
-          <td style="text-align: center;"><strong>{{ secondary_total_max }}</strong></td>
+          <td colspan="4" style="text-align: right;"><strong>Secondary Total (Questions):</strong></td>
           <td style="text-align: center;"><strong id="secondary-total">{{ secondary_total_obtained }}</strong></td>
+          <td></td>
         </tr>
       </tbody>
     </table>
@@ -255,9 +270,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const secondarySummaryElem = document.getElementById('secondary-summary-total');
   const grandSummaryElem = document.getElementById('grand-summary-total');
   
+  // Initial setup
   marksInputs.forEach(input => {
+    const row = input.closest('tr');
+    const checkbox = row.querySelector('.check-review');
     if (input.value.trim() !== "") {
       input.classList.add('has-marks');
+      if (checkbox) {
+        checkbox.checked = true;
+        checkbox.classList.add('checked');
+      }
     }
   });
   
@@ -265,19 +287,33 @@ document.addEventListener('DOMContentLoaded', function() {
   
   marksInputs.forEach(input => {
     input.addEventListener('input', function() {
+      const row = this.closest('tr');
+      const checkbox = row.querySelector('.check-review');
       const maxMarks = parseInt(this.getAttribute('data-max-marks'));
-      let value = parseInt(this.value);
-      if (this.value.trim() === "") {
+      let value = this.value.trim();
+
+      if (value === "") {
+        // empty input → uncheck
         this.classList.remove('has-marks');
+        if (checkbox) {
+          checkbox.checked = false;
+          checkbox.classList.remove('checked');
+        }
       } else {
-        if (value < 0) this.value = 0;
-        if (value > maxMarks) this.value = maxMarks;
+        // some value (even 0) → check
+        let numVal = parseInt(value) || 0;
+        if (numVal < 0) this.value = 0;
+        if (numVal > maxMarks) this.value = maxMarks;
         this.classList.add('has-marks');
+        if (checkbox) {
+          checkbox.checked = true;
+          checkbox.classList.add('checked');
+        }
       }
       updateTotals();
     });
   });
-  
+
   function updateTotals() {
     let primaryTotal = 0;
     let secondaryTotal = 0;

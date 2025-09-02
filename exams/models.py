@@ -155,6 +155,7 @@ class Answer(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     answer = models.TextField(blank=True, null=True)
     marks_obt = models.IntegerField(default=0)
+    
 
     def __str__(self):
         return f"{self.candidate.army_no} - {self.question.exam_type}"
