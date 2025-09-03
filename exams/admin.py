@@ -6,8 +6,7 @@ from django.urls import path, reverse
 from django.http import HttpResponse, HttpResponseForbidden
 from django.template.response import TemplateResponse
 import time
-from io import BytesIO   # ✅ FIX: import BytesIO
-
+from io import BytesIO
 from .models import Candidate, Question, Answer
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side
@@ -21,7 +20,7 @@ KNOWN_COLS = {
     "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
     "training_center", "district", "state", "viva_1", "viva_2",
     "practical_1", "practical_2", "exam_type", "question",
-    "answer", "correct_answer", "max_marks", "part",  # ✅ include part
+    "answer", "correct_answer", "max_marks", "part",
 }
 
 
@@ -55,7 +54,7 @@ def _read_rows_from_excel(file):
 
 def _get_or_create_question(exam_type, text, correct, max_marks, part=None):
     if part:
-        part = str(part).strip().upper()  # ✅ added part
+        part = str(part).strip().upper()
     q = Question.objects.filter(exam_type=exam_type, question=text).first()
     correct_clean = (correct or "")
     if isinstance(correct_clean, str) and correct_clean.strip().lower() == "null":
@@ -65,14 +64,14 @@ def _get_or_create_question(exam_type, text, correct, max_marks, part=None):
         q = Question.objects.create(
             exam_type=exam_type,
             question=text,
-            part=part,   # ✅ save part
+            part=part,
             correct_answer=correct_clean,
             max_marks=max_marks or 0,
         )
     else:
         q.correct_answer = correct_clean
         q.max_marks = max_marks or 0
-        q.part = part or q.part  # ✅ update part if provided
+        q.part = part or q.part
         q.save()
     return q
 
@@ -92,13 +91,16 @@ class CandidateAdmin(admin.ModelAdmin):
     list_filter = ("center", "trade", "is_checked")
     search_fields = ("army_no", "name", "rank", "fathers_name", "district", "state", "trade")
 
+    # ✅ Add custom action
+    actions = ["export_filtered_results"]
+
     def get_urls(self):
         urls = super().get_urls()
         custom = [
             path("import-excel/", self.admin_site.admin_view(self.import_excel_view),
                  name="exams_candidate_import_excel"),
             path("export-results-excel/", self.admin_site.admin_view(self.export_results_excel_view),
-                 name="exams_export_results_excel"),
+                 name="exams_export_results_excel"),  # ✅ Added back
             path("<int:candidate_id>/save-grades/", self.admin_site.admin_view(self.save_grades_view),
                  name="exams_candidate_save_grades"),
             path("<int:candidate_id>/grade-answers/", self.admin_site.admin_view(self.grade_answers_view),
@@ -314,13 +316,29 @@ class CandidateAdmin(admin.ModelAdmin):
         }
         return render(request, "admin/exams/candidate/import_excel.html", ctx)
 
-        # ---------- Export ----------
+    # ---------- Export ALL (button) ----------
     def export_results_excel_view(self, request):
+        """
+        Export ALL candidates (ignores filters).
+        """
+        queryset = Candidate.objects.all()
+        return self._generate_excel(queryset)
+
+    # ---------- Export as Action (Filtered) ----------
+    def export_filtered_results(self, request, queryset):
+        """
+        Export only currently selected or filtered candidates from the admin list.
+        """
+        return self._generate_excel(queryset)
+
+    export_filtered_results.short_description = "Export filtered candidates to Excel"
+
+    # ---------- Helper: Generate Excel ----------
+    def _generate_excel(self, queryset):
         wb = Workbook()
 
         ws_primary = wb.active
         ws_primary.title = "PRIMARY MARKS STATEMENT"
-
         ws_secondary = wb.create_sheet(title="SECONDARY MARKS STATEMENT")
         ws_combined = wb.create_sheet(title="COMBINED RESULTS")
 
@@ -371,7 +389,7 @@ class CandidateAdmin(admin.ModelAdmin):
             "Duration of Qualification", "Credits", "NSQF Level", "Training Centre",
             "District", "State", "Percentage"
         ]
-        secondary_headers = primary_headers[:]  # same
+        secondary_headers = primary_headers[:]
 
         ws_primary.append(primary_headers)
         ws_secondary.append(secondary_headers)
@@ -389,8 +407,7 @@ class CandidateAdmin(admin.ModelAdmin):
                 cell.border = thin_border
 
         # ----- Fill Candidate Data -----
-        for idx, cand in enumerate(Candidate.objects.all(), start=1):
-            # Primary calculation
+        for idx, cand in enumerate(queryset, start=1):
             primary_theory = sum(
                 a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="primary")
             )
@@ -399,7 +416,6 @@ class CandidateAdmin(admin.ModelAdmin):
             primary_total = primary_theory + primary_practical + primary_viva
             primary_percentage = primary_total
 
-            # Secondary calculation
             secondary_theory = sum(
                 a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="secondary")
             )
@@ -408,21 +424,12 @@ class CandidateAdmin(admin.ModelAdmin):
             secondary_total = secondary_theory + secondary_practical + secondary_viva
             secondary_percentage = secondary_total
 
-            # ----- Add to Combined -----
             ws_combined.append([
-                idx,  # ✅ auto S No
-                cand.center or "",
-                cand.army_no or "",
-                cand.rank or "",
-                cand.trade or "",
-                cand.name or "",
-                primary_theory, primary_practical, primary_viva,
-                primary_total, primary_percentage,
-                secondary_theory, secondary_practical, secondary_viva,
-                secondary_total, secondary_percentage
+                idx, cand.center or "", cand.army_no or "", cand.rank or "", cand.trade or "", cand.name or "",
+                primary_theory, primary_practical, primary_viva, primary_total, primary_percentage,
+                secondary_theory, secondary_practical, secondary_viva, secondary_total, secondary_percentage
             ])
 
-            # ----- Add to Primary -----
             ws_primary.append([
                 idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
                 cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
@@ -431,7 +438,6 @@ class CandidateAdmin(admin.ModelAdmin):
                 cand.district or "", cand.state or "", primary_percentage
             ])
 
-            # ----- Add to Secondary -----
             ws_secondary.append([
                 idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
                 cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
@@ -458,4 +464,3 @@ class CandidateAdmin(admin.ModelAdmin):
         )
         response["Content-Disposition"] = 'attachment; filename="results.xlsx"'
         return response
-
