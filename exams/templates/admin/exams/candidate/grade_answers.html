@@ -143,10 +143,55 @@
 <div id="content-main">
   <h1>Grade Answers for {{ candidate.name }} ({{ candidate.army_no }})</h1>
 
-  <div class="summary-container">
-    {# summary cards unchanged #}
-  </div>
+    <div class="summary-container">
+    <div class="summary-card">
+      <h3>Primary Exam Summary</h3>
+      <div class="summary-stats">
+        <div class="summary-stat">
+          <strong>Viva 1</strong>
+          {{ candidate.viva_1 }}
+        </div>
+        <div class="summary-stat">
+          <strong>Practical 1</strong>
+          {{ candidate.practical_1 }}
+        </div>
+        <div class="summary-stat summary-highlight">
+          <strong>Primary Total</strong>
+          <span id="primary-summary-total">{{ candidate.viva_1|add:candidate.practical_1|add:primary_total_obtained }}</span>
+        </div>
+      </div>
+    </div>
 
+    <div class="summary-card">
+      <h3>Secondary Exam Summary</h3>
+      <div class="summary-stats">
+        <div class="summary-stat">
+          <strong>Viva 2</strong>
+          {{ candidate.viva_2 }}
+        </div>
+        <div class="summary-stat">
+          <strong>Practical 2</strong>
+          {{ candidate.practical_2 }}
+        </div>
+        <div class="summary-stat summary-highlight">
+          <strong>Secondary Total</strong>
+          <span id="secondary-summary-total">{{ candidate.viva_2|add:candidate.practical_2|add:secondary_total_obtained }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <h3>Grand Total/200</h3>
+      <div class="summary-stats">
+        <div class="summary-stat summary-highlight" style="min-width: 200px; text-align: center;">
+          <strong>Overall Total</strong>
+          <span id="grand-summary-total">
+            {{ candidate.viva_1|add:candidate.practical_1|add:primary_total_obtained|add:candidate.viva_2|add:candidate.practical_2|add:secondary_total_obtained }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
   <form method="post" id="grading-form">
     {% csrf_token %}
     
@@ -227,7 +272,7 @@
     {% endif %}
 
     <div class="submit-row">
-      <input type="submit" value="Save Grades" class="button default" id="submit-button" {% if not all_marks_assigned %}disabled{% endif %}>
+      <input type="submit" value="Save Grades" class="button default" id="submit-button">
       <a href="{% url 'admin:exams_candidate_change' candidate.id %}" class="button">Back to Candidate</a>
     </div>
   </form>
@@ -240,7 +285,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const primaryTotalElem = document.getElementById('primary-total');
   const secondaryTotalElem = document.getElementById('secondary-total');
   const summaryTotalElem = document.getElementById('summary-total');
-  const submitButton = document.getElementById('submit-button');
   
   // -----------------------------
   // ✅ Auto-assign for MCQ / True-False
@@ -289,20 +333,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  function checkAllMarksAssigned() {
-    let allAssigned = true;
-    marksInputs.forEach(input => {
-      if (input.value === "0" || input.value.trim() === "") {
-        allAssigned = false;
-      }
-    });
-    return allAssigned;
-  }
-  
-  function updateSubmitButton() {
-    submitButton.disabled = !checkAllMarksAssigned();
-  }
-  
   marksInputs.forEach(input => {
     if (input.value.trim() === "" || input.value === "None" || input.value === "null") {
       input.value = "0";
@@ -324,14 +354,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         updateInputStyle(this);
         updateTotals();
-        updateSubmitButton();
       }
     });
     input.addEventListener('change', function() {
       if (!this.classList.contains('checked')) {
         updateInputStyle(this);
         updateTotals();
-        updateSubmitButton();
       }
     });
   });
@@ -363,7 +391,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   updateTotals();
-  updateSubmitButton();
   
   form.addEventListener('submit', function(e) {
     let hasErrors = false;

@@ -6,6 +6,7 @@ from django.urls import path, reverse
 from django.http import HttpResponse, HttpResponseForbidden
 from django.template.response import TemplateResponse
 import time
+from io import BytesIO   # ✅ FIX: import BytesIO
 
 from .models import Candidate, Question, Answer
 from openpyxl import load_workbook, Workbook
@@ -141,21 +142,17 @@ class CandidateAdmin(admin.ModelAdmin):
                         ans.marks_obt = ans.question.max_marks
                         ans.save()
 
-        # Separate answers by exam type
         primary_answers = [a for a in answers if a.question.exam_type.lower() == "primary"]
         secondary_answers = [a for a in answers if a.question.exam_type.lower() == "secondary"]
 
-        # ✅ Group answers by part
         def group_answers(ans_list):
             def norm(p): return (p or "").strip().upper()
-            groups = {
+            return {
                 "MCQ": [a for a in ans_list if norm(a.question.part) in ("A", "B", "C")],
                 "True/False": [a for a in ans_list if norm(a.question.part) == "F"],
                 "Short Answer & Fill in Blanks": [a for a in ans_list if norm(a.question.part) == "D"],
                 "Long Answer": [a for a in ans_list if norm(a.question.part) == "E"],
             }
-            return groups
-
 
         if request.method == "POST":
             for answer in answers:
@@ -173,16 +170,14 @@ class CandidateAdmin(admin.ModelAdmin):
                     except ValueError:
                         pass
 
-            cand.is_checked = True  # ✅ mark candidate as checked
+            cand.is_checked = True
             cand.save()
 
             self.message_user(request, "Grades updated successfully", level=messages.SUCCESS)
             return redirect(f"{reverse('admin:exams_candidate_change', args=[candidate_id])}?t={time.time()}")
 
         primary_total_obtained = sum(a.marks_obt or 0 for a in primary_answers)
-        primary_total_max = sum(a.question.max_marks for a in primary_answers)
         secondary_total_obtained = sum(a.marks_obt or 0 for a in secondary_answers)
-        secondary_total_max = sum(a.question.max_marks for a in secondary_answers)
 
         all_marks_assigned = all(
             answer.marks_obt is not None and answer.marks_obt != 0
@@ -195,18 +190,16 @@ class CandidateAdmin(admin.ModelAdmin):
             "candidate": cand,
             "primary_answers": primary_answers,
             "secondary_answers": secondary_answers,
-            "primary_groups": group_answers(primary_answers),     # ✅ new
-            "secondary_groups": group_answers(secondary_answers), # ✅ new
+            "primary_groups": group_answers(primary_answers),
+            "secondary_groups": group_answers(secondary_answers),
             "primary_total_obtained": primary_total_obtained,
-            "primary_total_max": primary_total_max,
             "secondary_total_obtained": secondary_total_obtained,
-            "secondary_total_max": secondary_total_max,
             "all_marks_assigned": all_marks_assigned,
             "opts": self.model._meta,
         }
-
         return TemplateResponse(request, "admin/exams/candidate/grade_answers.html", context)
 
+    # ---------- Save Grades View ----------
     def save_grades_view(self, request, candidate_id):
         cand = Candidate.objects.get(pk=candidate_id)
         if request.method == "POST":
@@ -277,7 +270,7 @@ class CandidateAdmin(admin.ModelAdmin):
                             text=row.get("question") or "",
                             correct=row.get("correct_answer"),
                             max_marks=row.get("max_marks") or 0,
-                            part=row.get("part") or None,  # ✅ new
+                            part=row.get("part") or None,
                         )
                         if q.id not in seen_questions_before:
                             created_questions += 1
@@ -321,28 +314,21 @@ class CandidateAdmin(admin.ModelAdmin):
         }
         return render(request, "admin/exams/candidate/import_excel.html", ctx)
 
-    # ---------- Export ----------
+        # ---------- Export ----------
     def export_results_excel_view(self, request):
         wb = Workbook()
 
-        # Create Primary sheet
         ws_primary = wb.active
         ws_primary.title = "PRIMARY MARKS STATEMENT"
 
-        # Create Secondary sheet
         ws_secondary = wb.create_sheet(title="SECONDARY MARKS STATEMENT")
-
-        # Create Combined sheet
         ws_combined = wb.create_sheet(title="COMBINED RESULTS")
 
-        # ---------- Styles ----------
         bold_font = Font(bold=True)
         center_aligned = Alignment(horizontal="center", vertical="center", wrap_text=True)
         thin_border = Border(
-            left=Side(style="thin"),
-            right=Side(style="thin"),
-            top=Side(style="thin"),
-            bottom=Side(style="thin"),
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
         )
 
         # ----- Combined Sheet Formatting -----
@@ -352,11 +338,6 @@ class CandidateAdmin(admin.ModelAdmin):
         ws_combined.merge_cells("D1:D2")
         ws_combined.merge_cells("E1:E2")
         ws_combined.merge_cells("F1:F2")
-
-        first_cand = Candidate.objects.first()
-        primary_qf_name = f"Primary-1" if first_cand else "Primary-1"
-        secondary_qf_name = f"Secondary-1" if first_cand else "Secondary-1"
-
         ws_combined.merge_cells("G1:K1")
         ws_combined.merge_cells("L1:P1")
 
@@ -366,8 +347,8 @@ class CandidateAdmin(admin.ModelAdmin):
         ws_combined["D1"] = "Rk"
         ws_combined["E1"] = "Tde"
         ws_combined["F1"] = "Name"
-        ws_combined["G1"] = primary_qf_name
-        ws_combined["L1"] = secondary_qf_name
+        ws_combined["G1"] = "Primary-1"
+        ws_combined["L1"] = "Secondary-1"
 
         sub_headers = [
             "Theory*", "Practical*", "Viva*", "Total", "Percentage (%)",
@@ -383,56 +364,14 @@ class CandidateAdmin(admin.ModelAdmin):
                     cell.alignment = center_aligned
                     cell.border = thin_border
 
-        row_idx = 3
-        for cand in Candidate.objects.all():
-            primary_theory = sum(
-                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="primary")
-            )
-            primary_practical = cand.practical_1 or 0
-            primary_viva = cand.viva_1 or 0
-            primary_total = primary_theory + primary_practical + primary_viva
-            primary_percentage = primary_total
-
-            secondary_theory = sum(
-                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="secondary")
-            )
-            secondary_practical = cand.practical_2 or 0
-            secondary_viva = cand.viva_2 or 0
-            secondary_total = secondary_theory + secondary_practical + secondary_viva
-            secondary_percentage = secondary_total
-
-            ws_combined.append([
-                cand.s_no or "",
-                cand.center or "",
-                cand.army_no or "",
-                cand.rank or "",
-                cand.trade or "",
-                cand.name or "",
-                primary_theory, primary_practical, primary_viva,
-                primary_total, primary_percentage,
-                secondary_theory, secondary_practical, secondary_viva,
-                secondary_total, secondary_percentage
-            ])
-            row_idx += 1
-
-        for row in ws_combined.iter_rows(min_row=1, max_row=ws_combined.max_row):
-            for cell in row:
-                if cell.value is not None:
-                    cell.border = thin_border
-
+        # ----- Headers for Primary & Secondary -----
         primary_headers = [
             "S No", "Name of Candidate", "Photograph", "Father's Name", "Trade", "DOB",
             "Enrolment No", "Aadhar Number", "Name of Qualification",
             "Duration of Qualification", "Credits", "NSQF Level", "Training Centre",
             "District", "State", "Percentage"
         ]
-
-        secondary_headers = [
-            "S No", "Name of Candidate", "Photograph", "Father's Name", "Trade", "DOB",
-            "Enrolment No", "Aadhar Number", "Name of Qualification",
-            "Duration of Qualification", "Credits", "NSQF Level", "Training Centre",
-            "District", "State", "Percentage"
-        ]
+        secondary_headers = primary_headers[:]  # same
 
         ws_primary.append(primary_headers)
         ws_secondary.append(secondary_headers)
@@ -448,4 +387,75 @@ class CandidateAdmin(admin.ModelAdmin):
                 cell.font = bold_font
                 cell.alignment = center_aligned
                 cell.border = thin_border
+
+        # ----- Fill Candidate Data -----
+        for idx, cand in enumerate(Candidate.objects.all(), start=1):
+            # Primary calculation
+            primary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="primary")
+            )
+            primary_practical = cand.practical_1 or 0
+            primary_viva = cand.viva_1 or 0
+            primary_total = primary_theory + primary_practical + primary_viva
+            primary_percentage = primary_total
+
+            # Secondary calculation
+            secondary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="secondary")
+            )
+            secondary_practical = cand.practical_2 or 0
+            secondary_viva = cand.viva_2 or 0
+            secondary_total = secondary_theory + secondary_practical + secondary_viva
+            secondary_percentage = secondary_total
+
+            # ----- Add to Combined -----
+            ws_combined.append([
+                idx,  # ✅ auto S No
+                cand.center or "",
+                cand.army_no or "",
+                cand.rank or "",
+                cand.trade or "",
+                cand.name or "",
+                primary_theory, primary_practical, primary_viva,
+                primary_total, primary_percentage,
+                secondary_theory, secondary_practical, secondary_viva,
+                secondary_total, secondary_percentage
+            ])
+
+            # ----- Add to Primary -----
+            ws_primary.append([
+                idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
+                cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
+                cand.name_of_qualification or "", cand.duration_of_qualification or "",
+                cand.credits or "", cand.nsqf_level or "", cand.training_center or "",
+                cand.district or "", cand.state or "", primary_percentage
+            ])
+
+            # ----- Add to Secondary -----
+            ws_secondary.append([
+                idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
+                cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
+                cand.name_of_qualification or "", cand.duration_of_qualification or "",
+                cand.credits or "", cand.nsqf_level or "", cand.training_center or "",
+                cand.district or "", cand.state or "", secondary_percentage
+            ])
+
+        # Add borders
+        for ws in [ws_combined, ws_primary, ws_secondary]:
+            for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column):
+                for cell in row:
+                    if cell.value is not None:
+                        cell.border = thin_border
+
+        # ✅ Return Excel file
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="results.xlsx"'
+        return response
 
