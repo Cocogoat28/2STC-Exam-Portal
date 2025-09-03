@@ -25,13 +25,38 @@ KNOWN_COLS = {
 
 
 def _normalize_header(val: str) -> str:
-    return (
-        (val or "")
-        .strip()
-        .lower()
-        .replace(".", "_")
-        .replace(" ", "_")
-    )
+    if not val:
+        return ""
+
+    key = (val or "").strip().lower().replace(".", "_").replace(" ", "_")
+
+    mapping = {
+        "s_no": "s_no", "sno": "s_no", "s_no.": "s_no", "s_number": "s_no",
+
+        "fathers_name": "fathers_name", "father_name": "fathers_name",
+
+        "army_no": "army_no", "army_number": "army_no",
+
+        "adhaar_no": "adhaar_no", "aadhar_no": "adhaar_no",
+
+        "name_of_qualification": "name_of_qualification", "qualification_name": "name_of_qualification",
+
+        "duration_of_qualification": "duration_of_qualification", "qualification_duration": "duration_of_qualification",
+
+        "nsqf_level": "nsqf_level", "nsqf": "nsqf_level", "nsqflevel": "nsqf_level",
+
+        "training_center": "training_center", "centre_of_training": "training_center",
+
+        # ✅ Fix for your Excel
+        "center": "center",
+    "centre": "center",
+
+    "trade": "trade",
+    "trd": "trade",       # maps Excel "Tde" → model "trade"
+    }
+
+    return mapping.get(key, key)
+
 
 
 def _read_rows_from_excel(file):
@@ -234,27 +259,28 @@ class CandidateAdmin(admin.ModelAdmin):
                             continue
 
                         cand_defaults = {
-                            "s_no": row.get("s_no") or 0,
-                            "name": row.get("name") or "",
-                            "center": row.get("center") or "",
-                            "photo": row.get("photo") or None,
-                            "fathers_name": row.get("fathers_name") or "",
-                            "dob": row.get("dob") or None,
-                            "rank": row.get("rank") or "",
-                            "trade": row.get("trade") or "",
-                            "adhaar_no": row.get("adhaar_no") or "",
-                            "name_of_qualification": row.get("name_of_qualification") or "",
-                            "duration_of_qualification": row.get("duration_of_qualification") or "",
-                            "credits": row.get("credits") or 0,
-                            "nsqf_level": row.get("nsqf_level") or 0,
-                            "training_center": row.get("training_center") or "",
-                            "district": row.get("district") or "",
-                            "state": row.get("state") or "",
-                            "viva_1": row.get("viva_1") or 0,
-                            "viva_2": row.get("viva_2") or 0,
-                            "practical_1": row.get("practical_1") or 0,
-                            "practical_2": row.get("practical_2") or 0,
-                        }
+    "s_no": row.get("s_no") or 0,
+    "name": (row.get("name") or "").strip(),
+    "center": (row.get("center") or "").strip(),  # ✅ normalize Center
+    "photo": row.get("photo") or None,
+    "fathers_name": (row.get("fathers_name") or "").strip(),
+    "dob": row.get("dob") or None,
+    "rank": (row.get("rank") or "").strip(),
+    "trade": (row.get("trade") or "").strip().upper(),    # ✅ normalize Trade
+    "adhaar_no": (row.get("adhaar_no") or "").strip(),
+    "name_of_qualification": (row.get("name_of_qualification") or "").strip(),
+    "duration_of_qualification": (row.get("duration_of_qualification") or "").strip(),
+    "credits": row.get("credits") or 0,
+    "nsqf_level": row.get("nsqf_level") or 0,
+    "training_center": (row.get("training_center") or "").strip(),
+    "district": (row.get("district") or "").strip(),
+    "state": (row.get("state") or "").strip(),
+    "viva_1": row.get("viva_1") or 0,
+    "viva_2": row.get("viva_2") or 0,
+    "practical_1": row.get("practical_1") or 0,
+    "practical_2": row.get("practical_2") or 0,
+}
+
                         cand, created = Candidate.objects.get_or_create(
                             army_no=army, defaults=cand_defaults
                         )
