@@ -1,0 +1,5 @@
+Django==5.2.5
+django-jazzmin==3.0.0
+openpyxl==3.1.5
+python-dateutil==2.9.0.post0
+pdfplumber==0.11.7

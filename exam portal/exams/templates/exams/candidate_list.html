@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Candidates</h2>
+
+<form id="category-filter-form" class="row g-2 align-items-center mb-3" method="get" action="">
+  <div class="col-auto">
+    <label for="category" class="col-form-label">Filter by Category:</label>
+  </div>
+  <div class="col-auto">
+    <select name="category" id="category" class="form-select">
+      <option value="" {% if not selected_category %}selected{% endif %}>All Categories</option>
+      {% for cat in categories %}
+      <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-outline-primary">Filter</button>
+  </div>
+  <div class="col-auto">
+    <a href="{% url 'candidate_list' %}" class="btn btn-outline-secondary">Clear</a>
+  </div>
+</form>
+<a href="{% url 'export_results_excel' %}" class="btn btn-primary mb-3">Export to Excel</a>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Army No</th>
+      <th>Name</th>
+      <th>Category</th>
+      <th>Paper</th>
+      <th>Total</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for candidate in candidates %}
+    <tr>
+      <td>{{ candidate.army_number }}</td>
+      <td>{{ candidate.name }}</td>
+      <td>{{ candidate.category }}</td>
+      <td>{{ candidate.paper }}</td>
+      <td>{{ candidate.total_marks }}</td>
+      <td>
+        <a href="{% url 'candidate_result' candidate.id %}" class="btn btn-sm btn-success">View Results</a>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6">No candidates uploaded yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,229 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block title %}Grade Candidate{% endblock %}
+
+{% block content %}
+<style>
+  /* Full screen container */
+  .grade-container {
+    width: 95%;
+    margin: 10px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    font-family: Arial, sans-serif;
+  }
+
+  /* Header */
+  .grade-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+  }
+  .grade-header h2 {
+    margin: 0;
+    font-size: 24px;
+    color: #222;
+  }
+  .badge-total {
+    background: #007bff;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 15px;
+  }
+
+  /* Marks input section */
+  .marks-section {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 20px;
+  }
+  .marks-section label {
+    font-weight: bold;
+    color: #444;
+  }
+  .marks-section input {
+    width: 140px;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin-top: 4px;
+    font-size: 15px;
+  }
+
+  /* Answers Table */
+  table.answers {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+  }
+  table.answers thead {
+    background: #f7f7f7;
+  }
+  table.answers th, table.answers td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    font-size: 15px;
+    vertical-align: middle;
+  }
+  table.answers th {
+    text-align: center;
+    font-weight: bold;
+    color: #333;
+  }
+  table.answers tr:nth-child(even) {
+    background: #fafafa;
+  }
+
+  /* Mark input highlight logic */
+  .mark-input {
+    width: 80px;
+    text-align: center;
+    padding: 6px;
+    border: 1px solid #bbb;
+    border-radius: 5px;
+    background: #f8d7da; /* red background initially */
+  }
+  .mark-input.checked {
+    background: #d4edda; /* green when checked */
+  }
+
+  /* Save button */
+  .btn-save {
+    background: #28a745;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    margin-top: 20px;
+  }
+  .btn-save:hover {
+    background: #218838;
+  }
+</style>
+
+<div class="grade-container">
+  <!-- Header -->
+  <div class="grade-header">
+    <h2>Grade: {{ candidate.army_number }} — {{ candidate.name }}</h2>
+    <span class="badge-total">Total (Live): <span id="live-total">0</span></span>
+  </div>
+
+  <!-- Marks inputs -->
+  <form method="post" id="grade-form">{% csrf_token %}
+    <div class="marks-section">
+      <div>
+        <label for="id_viva">Viva Marks:</label><br>
+        <input type="number" id="id_viva" name="viva_marks" 
+               value="{{ candidate.viva_marks|default_if_none:'' }}">
+      </div>
+      <div>
+        <label for="id_practical">Practical Marks:</label><br>
+        <input type="number" id="id_practical" name="practical_marks" 
+               value="{{ candidate.practical_marks|default_if_none:'' }}">
+      </div>
+      <div>
+        <label>Objective Sum:</label><br>
+        <strong><span id="objective-sum">0</span></strong>
+      </div>
+    </div>
+
+    <!-- Answers Table -->
+    <h3>Answers</h3>
+    <table class="answers">
+      <thead>
+        <tr>
+          <th style="width:80px;">Q No</th>
+          <th>Question</th>
+          <th style="width:35%;">Candidate Answer</th>
+          <th style="width:120px;">Marks Awarded</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ans in answers %}
+        <tr>
+          <td style="text-align:center;">{{ ans.question.number|default:"" }}</td>
+          <td>{{ ans.question.text }}</td>
+          <td>{{ ans.answer_text|default:"(no answer)" }}</td>
+          <td style="text-align:center;">
+            <input type="number" step="1" name="mark_{{ ans.pk }}"
+                   value="{{ ans.marks_awarded|default_if_none:'' }}"
+                   class="mark-input" data-ans-pk="{{ ans.pk }}"
+                   data-initial-value="{{ ans.marks_awarded|default_if_none:'' }}">
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align:center; color:#888;">No answers found for this candidate.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Save Button -->
+    <button type="submit" class="btn-save">💾 Save Marks</button>
+  </form>
+</div>
+
+<script>
+  function computeTotals() {
+    const markInputs = document.querySelectorAll('.mark-input');
+    let objectiveSum = 0;
+    markInputs.forEach((el) => {
+      const v = parseFloat(el.value);
+      if (!isNaN(v)) objectiveSum += v;
+    });
+    const viva = parseFloat(document.getElementById('id_viva').value) || 0;
+    const prac = parseFloat(document.getElementById('id_practical').value) || 0;
+    document.getElementById('objective-sum').textContent = objectiveSum;
+    document.getElementById('live-total').textContent = (objectiveSum + viva + prac);
+  }
+
+  function updateCheckStatus(input) {
+    // Check if the input has a valid numeric value (including 0)
+    if (input.value !== "" && !isNaN(input.value) && input.value.trim() !== '') {
+      // Only turn green if the value is different from the initial value
+      // or if the initial value was empty/not set
+      const initialValue = input.getAttribute('data-initial-value');
+      if (initialValue === '' || initialValue !== input.value) {
+        input.classList.add("checked");
+      } else {
+        input.classList.remove("checked");
+      }
+    } else {
+      input.classList.remove("checked");
+    }
+  }
+
+  document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('mark-input')) {
+      updateCheckStatus(e.target);
+      computeTotals();
+    }
+    if (e.target.id === 'id_viva' || e.target.id === 'id_practical') {
+      computeTotals();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all mark inputs with correct status
+    document.querySelectorAll('.mark-input').forEach((el) => {
+      // For inputs with initial value of 0, keep them red
+      const initialValue = el.getAttribute('data-initial-value');
+      if (initialValue === '0' || initialValue === '') {
+        el.classList.remove("checked");
+      } else if (initialValue) {
+        el.classList.add("checked");
+      }
+    });
+    computeTotals();
+  });
+</script>
+{% endblock %}
