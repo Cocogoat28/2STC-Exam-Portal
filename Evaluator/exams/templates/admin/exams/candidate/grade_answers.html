@@ -8,16 +8,32 @@
       width: 100%;
       border-collapse: collapse;
       margin-bottom: 20px;
+      /* ➕ keep columns stable & allow horizontal scroll on very small screens */
+      table-layout: fixed;
+      overflow-x: auto;
+      display: block;
     }
     .grade-table th, .grade-table td {
       border: 1px solid #ddd;
       padding: 8px;
       text-align: left;
+      /* ➕ make long content behave */
+      vertical-align: top;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
     .grade-table th {
       background-color: #f2f2f2;
       font-weight: bold;
     }
+
+    /* ➕ limit very long text and allow inner scroll to avoid page blowout */
+    .cand-ans, .corr-ans {
+      max-height: 12rem;
+      overflow: auto;
+      white-space: pre-wrap;  /* keep user line breaks */
+    }
+
     .marks-input {
       width: 60px;
       text-align: center;
@@ -140,6 +156,13 @@
       background-color: #e9ecef;
       font-weight: bold;
     }
+
+    /* ➕ small-screen polish */
+    @media (max-width: 768px) {
+      .cand-ans, .corr-ans { max-height: 10rem; }
+      .summary-stats { flex-wrap: wrap; }
+      .summary-stat { min-width: 120px; }
+    }
   </style>
 {% endblock %}
 
@@ -261,25 +284,22 @@ document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('grading-form');
   const marksInputs = form.querySelectorAll('.marks-input');
 
-  // Function to update input styling
   function updateInputStyle(input, isInitial=false) {
     if (input.classList.contains('checked')) return; // skip auto MCQ/TF
     const value = input.value.trim();
 
     if (isInitial) {
-      // At load: untouched zeros are red
       if (value === "0") {
         input.classList.add('not-graded');
         input.classList.remove('has-marks');
       }
     } else {
-      // User interacted: any number (even 0) → green
       input.classList.add('has-marks');
       input.classList.remove('not-graded');
     }
   }
 
-  // Auto-assign MCQ/TF
+  // Auto-assign MCQ/TF (unchanged)
   document.querySelectorAll('table.grade-table').forEach((table) => {
     const rows = table.querySelectorAll('tbody tr');
     const sectionLabel = table.previousElementSibling?.textContent?.trim().toLowerCase();
@@ -306,12 +326,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Apply styles on load and changes
+  // Apply styles on load and changes (unchanged)
   marksInputs.forEach(input => {
     if (input.value.trim() === "" || input.value === "None" || input.value === "null") {
       input.value = "0";
     }
-    updateInputStyle(input, true); // initial check
+    updateInputStyle(input, true);
 
     input.addEventListener('input', function() {
       if (!this.classList.contains('checked')) {
@@ -322,7 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (numericValue > maxMarks) {
           this.value = maxMarks;
         }
-        updateInputStyle(this); // after interaction → green
+        updateInputStyle(this);
       }
     });
 

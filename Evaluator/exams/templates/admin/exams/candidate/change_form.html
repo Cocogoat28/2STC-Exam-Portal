@@ -6,15 +6,24 @@
         Candidate: {{ original.name }} ({{ original.army_no }}) - {{ original.trade }} – Viva & Practical Marks
   </h1>
 
-  <!-- Score Summary Card -->
-  <div style="margin-bottom:25px; padding:15px; background:#f0f4f8; border:1px solid #d1d9e0; border-radius:10px;">
+  <!-- Score Summary Card (forced below title) -->
+  <div style="
+      margin-bottom:25px;
+      padding:15px;
+      background:#f0f4f8;
+      border:1px solid #d1d9e0;
+      border-radius:10px;
+      /* ensure it always sits below the H1 regardless of title length/wrapping */
+      clear: both;
+      display: block;
+      width: 100%;
+  ">
     <h3 style="margin-top:0; margin-bottom:10px;">📊 Score Summary</h3>
     <div style="display:flex; gap:30px; flex-wrap:wrap; font-size:15px;">
       <div><strong>Viva 1:</strong> {{ original.viva_1 }}</div>
       <div><strong>Viva 2:</strong> {{ original.viva_2 }}</div>
       <div><strong>Practical 1:</strong> {{ original.practical_1 }}</div>
       <div><strong>Practical 2:</strong> {{ original.practical_2 }}</div>
-      
     </div>
     
     <!-- Grade Button -->
