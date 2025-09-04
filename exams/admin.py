@@ -17,10 +17,13 @@ from openpyxl.styles import Font, Alignment, Border, Side
 REQUIRED_COLS = {"army_no", "exam_type", "question", "answer"}
 KNOWN_COLS = {
     "s_no", "name", "center", "photo", "fathers_name", "dob", "trade", "rank", "army_no", "adhaar_no",
-    "name_of_qualification", "duration_of_qualification", "credits", "nsqf_level",
-    "training_center", "district", "state", "viva_1", "viva_2",
-    "practical_1", "practical_2", "exam_type", "question",
-    "answer", "correct_answer", "max_marks", "part",
+    # NEW:
+    "primary_qualification", "primary_duration", "primary_credits",
+    "secondary_qualification", "secondary_duration", "secondary_credits",
+    # existing:
+    "nsqf_level", "training_center", "district", "state", "viva_1", "viva_2",
+    "practical_1", "practical_2", "exam_type", "question", "answer",
+    "correct_answer", "max_marks", "part",
 }
 
 
@@ -39,16 +42,25 @@ def _normalize_header(val: str) -> str:
 
         "adhaar_no": "adhaar_no", "aadhar_no": "adhaar_no",
 
-        "name_of_qualification": "name_of_qualification", "qualification_name": "name_of_qualification",
+        "primary_qualification": "primary_qualification",
+    "primary qualification": "primary_qualification",
+    "primary_duration": "primary_duration",
+    "primary duration": "primary_duration",
+    "primary_credits": "primary_credits",
+    "primary credits": "primary_credits",
 
-        "duration_of_qualification": "duration_of_qualification", "qualification_duration": "duration_of_qualification",
+    # Secondary
+    "secondary_qualification": "secondary_qualification",
+    "secondary qualification": "secondary_qualification",
+    "secondary_duration": "secondary_duration",
+    "secondary duration": "secondary_duration",
+    "secondary_credits": "secondary_credits",
+    "secondary credits": "secondary_credits",        "nsqf_level": "nsqf_level", "nsqf": "nsqf_level", "nsqflevel": "nsqf_level",
 
-        "nsqf_level": "nsqf_level", "nsqf": "nsqf_level", "nsqflevel": "nsqf_level",
-
-        "training_center": "training_center", "centre_of_training": "training_center",
+    "training_center": "training_center", "centre_of_training": "training_center",
 
         # ✅ Fix for your Excel
-        "center": "center",
+    "center": "center",
     "centre": "center",
 
     "trade": "trade",
@@ -112,6 +124,7 @@ class AnswerInline(admin.TabularInline):
 class CandidateAdmin(admin.ModelAdmin):
     change_list_template = "admin/exams/candidate/change_list.html"
     change_form_template = "admin/exams/candidate/change_form.html"
+    readonly_fields = ("viva_1", "viva_2", "practical_1", "practical_2")
     list_display = ("army_no", "name", "center", "trade", "total_primary", "total_secondary", "grand_total", "is_checked")
     list_filter = ("center", "trade", "is_checked")
     search_fields = ("army_no", "name", "rank", "fathers_name", "district", "state", "trade")
@@ -268,9 +281,13 @@ class CandidateAdmin(admin.ModelAdmin):
     "rank": (row.get("rank") or "").strip(),
     "trade": (row.get("trade") or "").strip().upper(),    # ✅ normalize Trade
     "adhaar_no": (row.get("adhaar_no") or "").strip(),
-    "name_of_qualification": (row.get("name_of_qualification") or "").strip(),
-    "duration_of_qualification": (row.get("duration_of_qualification") or "").strip(),
-    "credits": row.get("credits") or 0,
+    "primary_qualification": (row.get("primary_qualification") or "").strip(),
+    "primary_duration": row.get("primary_duration") or 0,
+    "primary_credits": row.get("primary_credits") or 0,
+
+    "secondary_qualification": (row.get("secondary_qualification") or "").strip(),
+    "secondary_duration": row.get("secondary_duration") or 0,
+    "secondary_credits": row.get("secondary_credits") or 0,
     "nsqf_level": row.get("nsqf_level") or 0,
     "training_center": (row.get("training_center") or "").strip(),
     "district": (row.get("district") or "").strip(),
@@ -411,11 +428,18 @@ class CandidateAdmin(admin.ModelAdmin):
         # ----- Headers for Primary & Secondary -----
         primary_headers = [
             "S No", "Name of Candidate", "Photograph", "Father's Name", "Trade", "DOB",
-            "Enrolment No", "Aadhar Number", "Name of Qualification",
-            "Duration of Qualification", "Credits", "NSQF Level", "Training Centre",
+            "Enrolment No", "Aadhar Number",     "Primary Qualification", "Primary Duration", 
+            "Primary Credits",
+             "NSQF Level", "Training Centre",
             "District", "State", "Percentage"
         ]
-        secondary_headers = primary_headers[:]
+        secondary_headers = [
+            "S No", "Name of Candidate", "Photograph", "Father's Name", "Trade", "DOB",
+            "Enrolment No", "Aadhar Number",     "Secondary Qualification", "Secondary Duration", 
+            "Secondary Credits",
+             "NSQF Level", "Training Centre",
+            "District", "State", "Percentage"
+        ]
 
         ws_primary.append(primary_headers)
         ws_secondary.append(secondary_headers)
@@ -459,16 +483,16 @@ class CandidateAdmin(admin.ModelAdmin):
             ws_primary.append([
                 idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
                 cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
-                cand.name_of_qualification or "", cand.duration_of_qualification or "",
-                cand.credits or "", cand.nsqf_level or "", cand.training_center or "",
+                cand.primary_qualification or "", cand.primary_duration or "",
+                 cand.primary_credits or "",  cand.nsqf_level or "", cand.training_center or "",
                 cand.district or "", cand.state or "", primary_percentage
             ])
 
             ws_secondary.append([
                 idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
                 cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
-                cand.name_of_qualification or "", cand.duration_of_qualification or "",
-                cand.credits or "", cand.nsqf_level or "", cand.training_center or "",
+                cand.secondary_qualification or "", cand.secondary_duration or "",
+                cand.secondary_credits or "", cand.nsqf_level or "", cand.training_center or "",
                 cand.district or "", cand.state or "", secondary_percentage
             ])
 

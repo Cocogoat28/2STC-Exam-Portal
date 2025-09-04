@@ -93,10 +93,11 @@ JAZZMIN_SETTINGS = {
     "site_brand": "2STC Admin Portal",
 
     # Logo settings
-    "site_logo": "img/logo.png",           # top-left logo in header
-    "login_logo": "img/logo.png",          # login page logo (light bg)
-    "login_logo_dark": "img/logo.png",     # login page logo (dark bg)
+    "site_logo": "img/logo1.png",           # top-left logo in header
+    "login_logo": "img/logo1.png",          # login page logo (light bg)
+    "login_logo_dark": "img/logo1.png",     # login page logo (dark bg)
 
     # UI tweaks
     "show_ui_builder": True,
+    "custom_css": "css/admin-overrides.css",
 }

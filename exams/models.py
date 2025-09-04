@@ -76,9 +76,14 @@ class Candidate(models.Model):
     dob = models.DateField(blank=True, null=True)
     army_no = models.CharField(max_length=50, unique=True)
     adhaar_no = models.CharField(max_length=20, blank=True, null=True)
-    name_of_qualification = models.CharField(max_length=255, blank=True, null=True)
-    duration_of_qualification = models.CharField(max_length=50, blank=True, null=True)
-    credits = models.IntegerField(default=0)
+    primary_qualification = models.CharField(max_length=255, blank=True, null=True)
+    primary_duration = models.PositiveIntegerField(default=0)
+    primary_credits = models.PositiveIntegerField(default=0)
+
+    secondary_qualification = models.CharField(max_length=255, blank=True, null=True)
+    secondary_duration = models.PositiveIntegerField(default=0)
+    secondary_credits = models.PositiveIntegerField(default=0)
+
     nsqf_level = models.FloatField(default=0)
     training_center = models.CharField(max_length=255, blank=True, null=True)
     district = models.CharField(max_length=255, blank=True, null=True)
