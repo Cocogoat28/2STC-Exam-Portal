@@ -1,0 +1,335 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    .grade-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .grade-table th, .grade-table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    .grade-table th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .marks-input {
+      width: 60px;
+      text-align: center;
+      padding: 4px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      background-color: white;
+    }
+    .marks-input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+    .marks-input.has-marks {
+      color: black;
+      background-color: #29ce4f; /* ✅ green */
+      border-color: #09cd36;
+    }
+    .marks-input.checked {
+      color: black;
+      background-color: #29ce4f; /* ✅ green */
+      border-color: #09cd36;
+    }
+    .marks-input.not-graded {
+      color: black;
+      background-color: #ffcccc; /* ❌ red */
+      border-color: #ff0000;
+    }
+    .auto-evaluated {
+      background-color: #d4edda !important;
+    }
+
+    /* Summary Cards */
+    .summary-container {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+    .summary-card {
+        flex: 1;
+        min-width: 250px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+    }
+    .summary-stats {
+        display: flex;
+        gap: 20px;
+        flex-wrap: nowrap;
+        margin-bottom: 10px;
+    }
+    .summary-stat {
+        background: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        border: 1px solid #dee2e6;
+        min-width: 80px;
+        flex-grow: 1;
+        text-align: center;
+    }
+    .summary-stat strong {
+        display: block;
+        margin-bottom: 5px;
+        color: #495057;
+    }
+    .summary-highlight {
+        background-color: #e7f3ff;
+        font-weight: bold;
+    }
+
+    .summary-container .summary-card:last-child {
+        flex-grow: 0;
+        flex-shrink: 1;
+        min-width: 250px;
+    }
+
+    .section-header {
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 10px;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      color: #343a40;
+    }
+
+    .submit-row {
+      margin-top: 30px;
+      padding: 15px;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      text-align: right;
+    }
+    .submit-row .button {
+      padding: 10px 15px;
+      background: #000000;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      margin-left: 10px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .submit-row .default {
+      background: #e81212;
+    }
+    .submit-row .button:hover {
+      opacity: 0.9;
+    }
+    .submit-row .button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    .total-row {
+      background-color: #e9ecef;
+      font-weight: bold;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>Grade Answers for {{ candidate.name }} ({{ candidate.army_no }})</h1>
+
+  {# summary unchanged #}
+  <div class="summary-container">
+    <div class="summary-card">
+      <h3>Primary Exam Summary</h3>
+      <div class="summary-stats">
+        <div class="summary-stat"><strong>Viva 1</strong>{{ candidate.viva_1 }}</div>
+        <div class="summary-stat"><strong>Practical 1</strong>{{ candidate.practical_1 }}</div>
+        <div class="summary-stat summary-highlight">
+          <strong>Primary Total</strong>
+          <span id="primary-summary-total">{{ candidate.viva_1|add:candidate.practical_1|add:primary_total_obtained }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <h3>Secondary Exam Summary</h3>
+      <div class="summary-stats">
+        <div class="summary-stat"><strong>Viva 2</strong>{{ candidate.viva_2 }}</div>
+        <div class="summary-stat"><strong>Practical 2</strong>{{ candidate.practical_2 }}</div>
+        <div class="summary-stat summary-highlight">
+          <strong>Secondary Total</strong>
+          <span id="secondary-summary-total">{{ candidate.viva_2|add:candidate.practical_2|add:secondary_total_obtained }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <h3>Grand Total/200</h3>
+      <div class="summary-stats">
+        <div class="summary-stat summary-highlight" style="min-width: 200px; text-align: center;">
+          <strong>Overall Total</strong>
+          <span id="grand-summary-total">
+            {{ candidate.viva_1|add:candidate.practical_1|add:primary_total_obtained|add:candidate.viva_2|add:candidate.practical_2|add:secondary_total_obtained }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="post" id="grading-form">
+    {% csrf_token %}
+    
+    {# Primary Questions #}
+    {% if primary_groups %}
+      <h2 class="section-header">Primary Questions</h2>
+      {% for label, group in primary_groups.items %}
+        {% if group %}
+        <h3>{{ label }}</h3>
+        <table class="grade-table">
+          <thead>
+            <tr><th>Question</th><th>Candidate's Answer</th><th>Correct Answer</th><th>Max Marks</th><th>Marks Obtained</th></tr>
+          </thead>
+          <tbody>
+            {% for answer in group %}
+            <tr>
+              <td>{{ answer.question.question }}</td>
+              <td class="cand-ans">{{ answer.answer|default:"Not answered" }}</td>
+              <td class="corr-ans">{{ answer.question.correct_answer|default:"N/A" }}</td>
+              <td class="max-marks" style="text-align:center;">{{ answer.question.max_marks }}</td>
+              <td style="text-align:center;">
+                <input type="number" name="marks_{{ answer.id }}"
+                  value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% else %}0{% endif %}"
+                  min="0" max="{{ answer.question.max_marks }}"
+                  class="marks-input" data-max-marks="{{ answer.question.max_marks }}">
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+
+    {# Secondary Questions #}
+    {% if secondary_groups %}
+      <h2 class="section-header">Secondary Questions</h2>
+      {% for label, group in secondary_groups.items %}
+        {% if group %}
+        <h3>{{ label }}</h3>
+        <table class="grade-table">
+          <thead>
+            <tr><th>Question</th><th>Candidate's Answer</th><th>Correct Answer</th><th>Max Marks</th><th>Marks Obtained</th></tr>
+          </thead>
+          <tbody>
+            {% for answer in group %}
+            <tr>
+              <td>{{ answer.question.question }}</td>
+              <td class="cand-ans">{{ answer.answer|default:"Not answered" }}</td>
+              <td class="corr-ans">{{ answer.question.correct_answer|default:"N/A" }}</td>
+              <td class="max-marks" style="text-align:center;">{{ answer.question.max_marks }}</td>
+              <td style="text-align:center;">
+                <input type="number" name="marks_{{ answer.id }}"
+                  value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% else %}0{% endif %}"
+                  min="0" max="{{ answer.question.max_marks }}"
+                  class="marks-input" data-max-marks="{{ answer.question.max_marks }}">
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+
+    <div class="submit-row">
+      <input type="submit" value="Save Grades" class="button default" id="submit-button">
+      <a href="{% url 'admin:exams_candidate_change' candidate.id %}" class="button">Back to Candidate</a>
+    </div>
+  </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('grading-form');
+  const marksInputs = form.querySelectorAll('.marks-input');
+
+  // Function to update input styling
+  function updateInputStyle(input, isInitial=false) {
+    if (input.classList.contains('checked')) return; // skip auto MCQ/TF
+    const value = input.value.trim();
+
+    if (isInitial) {
+      // At load: untouched zeros are red
+      if (value === "0") {
+        input.classList.add('not-graded');
+        input.classList.remove('has-marks');
+      }
+    } else {
+      // User interacted: any number (even 0) → green
+      input.classList.add('has-marks');
+      input.classList.remove('not-graded');
+    }
+  }
+
+  // Auto-assign MCQ/TF
+  document.querySelectorAll('table.grade-table').forEach((table) => {
+    const rows = table.querySelectorAll('tbody tr');
+    const sectionLabel = table.previousElementSibling?.textContent?.trim().toLowerCase();
+    rows.forEach((row) => {
+      const candAnsElem = row.querySelector('.cand-ans');
+      const corrAnsElem = row.querySelector('.corr-ans');
+      const maxMarksElem = row.querySelector('.max-marks');
+      const input = row.querySelector('.marks-input');
+      if (candAnsElem && corrAnsElem && input && maxMarksElem) {
+        const candAns = candAnsElem.textContent.trim().toLowerCase();
+        const corrAns = corrAnsElem.textContent.trim().toLowerCase();
+        const maxMarks = parseInt(maxMarksElem.textContent);
+        if (sectionLabel.includes("mcq") || sectionLabel.includes("true/false")) {
+          if (candAns && corrAns && candAns === corrAns) {
+            input.value = maxMarks;
+          } else {
+            input.value = 0;
+          }
+          input.classList.add('checked');
+          input.classList.add('has-marks'); // always green
+          input.setAttribute('readonly', 'readonly');
+        }
+      }
+    });
+  });
+
+  // Apply styles on load and changes
+  marksInputs.forEach(input => {
+    if (input.value.trim() === "" || input.value === "None" || input.value === "null") {
+      input.value = "0";
+    }
+    updateInputStyle(input, true); // initial check
+
+    input.addEventListener('input', function() {
+      if (!this.classList.contains('checked')) {
+        const maxMarks = parseInt(this.getAttribute('data-max-marks'));
+        let numericValue = parseInt(this.value.trim());
+        if (isNaN(numericValue) || numericValue < 0) {
+          this.value = 0;
+        } else if (numericValue > maxMarks) {
+          this.value = maxMarks;
+        }
+        updateInputStyle(this); // after interaction → green
+      }
+    });
+
+    input.addEventListener('change', function() {
+      updateInputStyle(this);
+    });
+  });
+});
+</script>
+{% endblock %}

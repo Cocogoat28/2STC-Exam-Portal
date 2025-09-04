@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Results for {{ candidate.name }} ({{ candidate.army_number }})</h2>
+
+<form method="post">
+  {% csrf_token %}
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th style="width:120px;">Question</th>
+        <th>Answer</th>
+        <th style="width:140px;">Marks</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ans in answers %}
+      <tr>
+        <td>Q{{ ans.question.number }}</td>
+        <td>{{ ans.answer_text|default:"—" }}</td>
+        <td>
+          <input type="number"
+                 name="marks_{{ ans.id }}"
+                 value="{{ ans.marks_awarded|default:0 }}"
+                 class="form-control"
+                 min="0">
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <button type="submit" class="btn btn-success">Save Marks</button>
+</form>
+
+<div class="mt-4">
+  <h5 class="mb-1">Objective Total: {{ objective_total }}</h5>
+  <p class="mb-1">Viva Marks (set in Admin): <strong>{{ candidate.viva_marks }}</strong></p>
+  <p class="mb-3">Practical Marks (set in Admin): <strong>{{ candidate.practical_marks }}</strong></p>
+  <h3>Grand Total: {{ total }}</h3>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  function applyColor(input) {
+    const val = input.value;
+    if (!val || String(val) === '0') {
+      input.classList.remove('is-valid');
+      input.classList.add('is-invalid');
+      input.style.backgroundColor = '#f8d7da'; // light red
+      input.style.color = '#000';
+    } else {
+      input.classList.remove('is-invalid');
+      input.classList.add('is-valid');
+      input.style.backgroundColor = '#d1e7dd'; // light green
+      input.style.color = '#000';
+    }
+  }
+  const inputs = Array.from(document.querySelectorAll('input[type="number"][name^="marks_"]'));
+  inputs.forEach(inp => {
+    applyColor(inp); // initial
+    inp.addEventListener('input', () => applyColor(inp));
+    inp.addEventListener('change', () => applyColor(inp));
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        applyColor(inp);
+      }
+    });
+  });
+});
+</script>
+
+{% endblock %}

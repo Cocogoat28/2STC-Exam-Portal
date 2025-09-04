@@ -1,0 +1,18 @@
+/* Login page logo */
+/* Login page logo */
+.login-logo img {
+    width: 200px !important;   /* a bit larger */
+    height: auto !important;
+    max-height: 200px !important;
+    object-fit: contain !important;
+    display: inline-block !important;
+}
+
+
+/* Sidebar header logo (top left) */
+.brand-link .brand-image {
+    width: 40px !important;        /* smaller, balanced */
+    height: auto !important;
+    max-height: 40px !important;
+    object-fit: contain !important;
+}
