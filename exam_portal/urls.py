@@ -7,7 +7,7 @@ from django.views.generic import RedirectView
 urlpatterns = [
     path('', RedirectView.as_view(url='/admin/')),
     path("admin/", admin.site.urls),
-    path("", include("exams.urls")),  # ✅ handled in exams/urls.py
+     # ✅ handled in exams/urls.py
 ]
 
 if settings.DEBUG:
