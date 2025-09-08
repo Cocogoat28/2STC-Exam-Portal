@@ -16,3 +16,24 @@
     max-height: 40px !important;
     object-fit: contain !important;
 }
+
+/* Hide object-tools (Add button etc.) on candidate list */
+.change-list .object-tools { display: none !important; }
+
+.main-sidebar .user-panel .info a::first-letter {
+  text-transform: uppercase;
+}
+.main-sidebar .user-panel .info {
+  white-space: normal !important;
+  word-break: break-word !important;
+  line-height: 1.2;
+  max-width: 100%;
+}
+
+/* Avoid globally enlarging every link (keeps layout stable) */
+a { font-size: inherit !important; }
+
+/* (Optional) your sidebar font-size tweaks can stay, but scoped to sidebar */
+.sidebar .nav-link,
+.sidebar .nav-treeview .nav-link { font-size: 20px !important; }
+.sidebar .nav-header { font-size: 20px !important; font-weight: bold; }

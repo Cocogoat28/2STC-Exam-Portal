@@ -84,13 +84,12 @@ STATICFILES_DIRS = [
     BASE_DIR / "exam_portal" / "static",   # since your static is inside config/
 ]
 
-
 JAZZMIN_SETTINGS = {
     "site_title": "Exam Portal",
     "site_header": "Admin Portal",
-    "welcome_sign": "JAI HIND! Welcome to 2 Signal Training Centre Online Exam Portal",
+    "welcome_sign": "JAI HIND! Welcome to 2 Signal Training Centre Online Exam Portal",
     "copyright": "Developed by SLOG Solutions Pvt Ltd and 2STC",
-    "site_brand": "2STC Admin Portal",
+    "site_brand": "Evaluation Portal",
 
     # Logo settings
     "site_logo": "img/logo1.png",           # top-left logo in header
@@ -100,4 +99,38 @@ JAZZMIN_SETTINGS = {
     # UI tweaks
     "show_ui_builder": True,
     "custom_css": "css/admin-overrides.css",
+    "custom_js": "js/admin-overrides.js",
+
+    # ===== Jazzmin sidebar/menu customisation =====
+    # Hide the raw Candidates model entry
+    "hide_models": ["exams.Candidate"],
+"hide_apps": ["auth"],
+    # Provide the three desired links under the "exams" app section
+    "custom_links": {
+        "exams": [
+            {
+                "name": "Import Evaluation Data",
+                "url": "admin:exams_candidate_import_excel",   # custom admin view
+                "icon": "fas fa-file-import",
+            },
+            {
+                "name": "Exam Evaluation",
+                "url": "admin:exams_candidate_changelist",     # opens Candidates changelist
+                "icon": "fas fa-clipboard-check",
+            },
+            {
+                "name": "Export Results",
+                "url": "admin:exams_export_evaluation_page",   # your export page with the button
+                "icon": "fas fa-file-export",
+            },
+            {
+                "name": "Users",                               # 👈 now appears AFTER Export Results
+                "url": "admin:auth_user_changelist",          # Django's built-in User list
+                "icon": "fas fa-user",
+            },
+        ]
+    },
+
+    # Keep the section open in sidebar for convenience (optional)
+    "navigation_expanded": True,
 }

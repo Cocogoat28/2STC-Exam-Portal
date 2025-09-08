@@ -1,0 +1,110 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .welcome-wrap {
+    max-width: 980px;
+    margin: 14px auto;
+  }
+  .welcome-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff, #f9fafb);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.04), 0 2px 6px rgba(0,0,0,0.04);
+    padding: 26px;
+  }
+  .welcome-title {
+    font-size: clamp(1.6rem, 2.2vw, 2.2rem);
+    font-weight: 800;
+    margin: 0 0 6px;
+    color: #111827;
+  }
+  .welcome-sub {
+    color: #6b7280;
+    margin: 0 0 18px;
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .step {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .step strong { color: #111827; }
+  .step .actions a {
+    text-decoration: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: .6rem;
+    border: 1px solid #e5e7eb;
+    background: #f3f4f6;
+    color: #111827 !important;
+    font-weight: 600;
+  }
+  .step .actions a.primary {
+    background: #2563eb;
+    color: #fff !important;
+    border-color: #1d4ed8;
+  }
+  .tips {
+    margin-top: 14px;
+    color: #6b7280;
+    font-size: 0.95rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="welcome-wrap">
+  <section class="welcome-card">
+    <h1 class="welcome-title">Welcome to the Evaluation Portal</h1>
+    <p class="welcome-sub">Please follow the steps below to proceed with evaluation.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div>
+          <strong>1) Import Evaluation Data</strong>
+          <div>Upload the candidate responses Excel. If this is already done, skip to step 2.</div>
+        </div>
+        <div class="actions">
+          <a href="{% url 'admin:exams_candidate_import_excel' %}" class="primary">Import Excel</a>
+        </div>
+      </div>
+
+      <div class="step">
+        <div>
+          <strong>2) Exam Evaluation</strong>
+          <div>Open the candidates list and evaluate answers / assign marks.</div>
+        </div>
+        <div class="actions">
+          <a href="{% url 'admin:exams_candidate_changelist' %}" class="primary">Go to Exam Evaluation</a>
+        </div>
+      </div>
+
+      <div class="step">
+        <div>
+          <strong>3) Export Results</strong>
+          <div>Download the consolidated results Excel once grading is done.</div>
+        </div>
+        <div class="actions">
+          <a href="{% url 'admin:exams_export_evaluation_page' %}" class="primary">Export Results</a>
+        </div>
+      </div>
+    </div>
+
+    <p class="tips">Tip: You can also use the left sidebar (Exams section) to access these pages anytime.</p>
+  </section>
+</div>
+{% endblock %}

@@ -4,35 +4,64 @@
 {% block extrastyle %}
   {{ block.super }}
   <style>
-    .grade-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-      /* ➕ keep columns stable & allow horizontal scroll on very small screens */
-      table-layout: fixed;
-      overflow-x: auto;
-      display: block;
-    }
-    .grade-table th, .grade-table td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: left;
-      /* ➕ make long content behave */
-      vertical-align: top;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-    }
-    .grade-table th {
-      background-color: #f2f2f2;
-      font-weight: bold;
-    }
+/* --- Wrapper --- */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
-    /* ➕ limit very long text and allow inner scroll to avoid page blowout */
-    .cand-ans, .corr-ans {
-      max-height: 12rem;
-      overflow: auto;
-      white-space: pre-wrap;  /* keep user line breaks */
-    }
+/* --- Main Table --- */
+#content-main .grade-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  table-layout: auto;   /* let browser adjust widths naturally */
+}
+
+/* --- Base cell styles --- */
+#content-main .grade-table th,
+#content-main .grade-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  vertical-align: top;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* --- Header --- */
+#content-main .grade-table th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+  text-align: center;  /* default center for headers */
+}
+
+/* --- First 3 columns: Question, Candidate's Answer, Correct Answer --- */
+#content-main .grade-table th:nth-child(-n+3),
+#content-main .grade-table td:nth-child(-n+3) {
+  text-align: left !important;        /* left-aligned for readability */
+  white-space: pre-wrap !important;   /* preserve line breaks + wrap */
+  hyphens: auto;
+}
+
+/* --- Last 2 columns: Max Marks & Marks Obtained --- */
+#content-main .grade-table th:nth-last-child(-n+2),
+#content-main .grade-table td:nth-last-child(-n+2) {
+  text-align: center !important;
+  white-space: nowrap;   /* keep numbers on one line */
+  width: 1%;             /* shrink-to-fit */
+}
+
+/* --- Candidate & Correct Answer block style --- */
+#content-main .cand-ans,
+#content-main .corr-ans {
+  white-space: pre-wrap;   /* preserve line breaks */
+  text-align: left;        /* natural text flow */
+  margin: 0;
+  padding: 0;
+}
+
+
 
     .marks-input {
       width: 60px;
@@ -207,6 +236,7 @@
     </div>
   </div>
 
+  
   <form method="post" id="grading-form">
     {% csrf_token %}
     
@@ -216,6 +246,7 @@
       {% for label, group in primary_groups.items %}
         {% if group %}
         <h3>{{ label }}</h3>
+          
         <table class="grade-table">
           <thead>
             <tr><th>Question</th><th>Candidate's Answer</th><th>Correct Answer</th><th>Max Marks</th><th>Marks Obtained</th></tr>

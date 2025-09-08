@@ -1,0 +1,77 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrahead %}
+<style>
+  .export-container {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    max-width: 800px;
+    margin: 2rem auto;
+    text-align: center;
+  }
+
+  .export-container h1 {
+    font-size: 1.8rem;
+    margin-bottom: 0.75rem;
+    color: #2c3e50;
+  }
+
+  .export-container p {
+    color: #555;
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+  }
+
+  .export-btn {
+    display: inline-block;
+    padding: 12px 24px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 6px;
+    background: #0d6efd; /* Bootstrap primary blue */
+    color: #fff !important;
+    text-decoration: none;
+    transition: background 0.2s ease;
+  }
+
+  .export-btn:hover {
+    background: #0b5ed7;
+  }
+
+  .export-btn i {
+    margin-right: 8px;
+  }
+
+  /* small layout for three buttons */
+  .export-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="export-container">
+    <h1>📊 Export Evaluation Data</h1>
+    <p>You can download the full candidate evaluation report in Excel format.</p>
+
+    <div class="export-actions">
+      <a class="export-btn" href="{% url 'admin:exams_export_results_excel' %}">
+        <i class="fas fa-file-excel"></i> Export final result
+      </a>
+
+      <a class="export-btn" href="{% url 'admin:exams_export_evaluation_sheet' %}">
+        <i class="fas fa-file-excel"></i> Export Evaluation List (checked metadata)
+      </a>
+
+      <a class="export-btn" href="{% url 'admin:exams_export_all_sheet' %}">
+        <i class="fas fa-file-excel"></i> Export answer sheet 
+      </a>
+    </div>
+  </div>
+{% endblock %}
+{% load static %}

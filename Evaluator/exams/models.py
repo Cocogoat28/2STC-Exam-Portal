@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 
 class Trade(models.Model):
@@ -30,6 +31,16 @@ class ExamConfig(models.Model):
 
 class Candidate(models.Model):
     is_checked = models.BooleanField(default=False)
+    # NEW fields to record who checked and when
+    checked_at = models.DateTimeField(null=True, blank=True, help_text="When grades were saved/checked")
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="checked_candidates",
+        help_text="User who saved/checked the grades"
+    )
 
     TRADE_CHOICES = [
         ('TTC', 'TTC'), ('OCC', 'OCC'), ('DTMN', 'DTMN'), ('EFS', 'EFS'),
@@ -40,30 +51,30 @@ class Candidate(models.Model):
     ]
 
     CENTER_CHOICES = [
-    ('SWC-Jaipur', 'SWC-Jaipur'), ('SWC-Hissar', 'SWC-Hissar'), ('SWC-Bathinda', 'SWC-Bathinda'),
-    ('SWC-Sriganganagar', 'SWC-Sriganganagar'), ('SWC-Bikaner', 'SWC-Bikaner'), ('SWC-Suratgarh', 'SWC-Suratgarh'),
-    ('SWC-Kota', 'SWC-Kota'), ('ARTRAC-Port Blair', 'ARTRAC-Port Blair'),
-    ('ARTRAC-Ahmednagar', 'ARTRAC-Ahmednagar'), ('ARTRAC-Bangalore', 'ARTRAC-Bangalore'),
-    ('ARTRAC-Chennai', 'ARTRAC-Chennai'), ('SWC-Pune MINTSD', 'SWC-Pune MINTSD'),
-    ('ARTRAC-MCTE Mhow', 'ARTRAC-MCTE Mhow'), ('SC-Secunderabad', 'SC-Secunderabad'),
-    ('SC-Jhansi', 'SC-Jhansi'), ('SC-Ahmedabad', 'SC-Ahmedabad'), ('SC-Jodhpur', 'SC-Jodhpur'),
-    ('SC-Saugor', 'SC-Saugor'), ('SC-Bhopal', 'SC-Bhopal'), ('SC-Pune', 'SC-Pune'),
-    ('EC-Binaguri', 'EC-Binaguri'), ('EC-Kolkata', 'EC-Kolkata'), ('EC-Missamari', 'EC-Missamari'),
-    ('EC-Rangapahar', 'EC-Rangapahar'), ('EC-Dinjan', 'EC-Dinjan'), ('EC-Gangtok', 'EC-Gangtok'),
-    ('EC-Leimakhong', 'EC-Leimakhong'), ('EC-Tenga', 'EC-Tenga'), ('EC-Panagarh', 'EC-Panagarh'),
-    ('EC-Ranchi', 'EC-Ranchi'), ('EC-Likabali', 'EC-Likabali'), ('EC-Tejpur', 'EC-Tejpur'),
-    ('EC-Kalimpong', 'EC-Kalimpong'), ('WC-Jalandhar', 'WC-Jalandhar'), ('WC-Ambala', 'WC-Ambala'),
-    ('WC-Delhi', 'WC-Delhi'), ('WC-Amritsar', 'WC-Amritsar'), ('WC-Ferozepur', 'WC-Ferozepur'),
-    ('WC-Patiala', 'WC-Patiala'), ('WC-Jammu', 'WC-Jammu'), ('WC-Pathankot', 'WC-Pathankot'),
-    ('WC-Chandimandir', 'WC-Chandimandir'), ('WC-Meerut', 'WC-Meerut'),
-    ('CC-Agra', 'CC-Agra'), ('CC-Bareilly', 'CC-Bareilly'), ('CC-Jabalpur', 'CC-Jabalpur'),
-    ('CC-Lucknow', 'CC-Lucknow'), ('CC-Ranikhet', 'CC-Ranikhet'), ('CC-Dehradun', 'CC-Dehradun'),
-    ('NC-Udhampur', 'NC-Udhampur'), ('NC-Baramula', 'NC-Baramula'), ('NC-Kargil', 'NC-Kargil'),
-    ('NC-Leh', 'NC-Leh'), ('NC-Srinagar', 'NC-Srinagar'), ('NC-Kupwara', 'NC-Kupwara'),
-    ('NC-Allahabad', 'NC-Allahabad'), ('NC-Rajouri', 'NC-Rajouri'), ('NC-Akhnoor', 'NC-Akhnoor'),
-    ('NC-Nagrota', 'NC-Nagrota'), ('NC-Palampur', 'NC-Palampur'), ('NC-Mathura', 'NC-Mathura'),
-    ('NC-Karu', 'NC-Karu'),
-]
+        ('SWC-Jaipur', 'SWC-Jaipur'), ('SWC-Hissar', 'SWC-Hissar'), ('SWC-Bathinda', 'SWC-Bathinda'),
+        ('SWC-Sriganganagar', 'SWC-Sriganganagar'), ('SWC-Bikaner', 'SWC-Bikaner'), ('SWC-Suratgarh', 'SWC-Suratgarh'),
+        ('SWC-Kota', 'SWC-Kota'), ('ARTRAC-Port Blair', 'ARTRAC-Port Blair'),
+        ('ARTRAC-Ahmednagar', 'ARTRAC-Ahmednagar'), ('ARTRAC-Bangalore', 'ARTRAC-Bangalore'),
+        ('ARTRAC-Chennai', 'ARTRAC-Chennai'), ('SWC-Pune MINTSD', 'SWC-Pune MINTSD'),
+        ('ARTRAC-MCTE Mhow', 'ARTRAC-MCTE Mhow'), ('SC-Secunderabad', 'SC-Secunderabad'),
+        ('SC-Jhansi', 'SC-Jhansi'), ('SC-Ahmedabad', 'SC-Ahmedabad'), ('SC-Jodhpur', 'SC-Jodhpur'),
+        ('SC-Saugor', 'SC-Saugor'), ('SC-Bhopal', 'SC-Bhopal'), ('SC-Pune', 'SC-Pune'),
+        ('EC-Binaguri', 'EC-Binaguri'), ('EC-Kolkata', 'EC-Kolkata'), ('EC-Missamari', 'EC-Missamari'),
+        ('EC-Rangapahar', 'EC-Rangapahar'), ('EC-Dinjan', 'EC-Dinjan'), ('EC-Gangtok', 'EC-Gangtok'),
+        ('EC-Leimakhong', 'EC-Leimakhong'), ('EC-Tenga', 'EC-Tenga'), ('EC-Panagarh', 'EC-Panagarh'),
+        ('EC-Ranchi', 'EC-Ranchi'), ('EC-Likabali', 'EC-Likabali'), ('EC-Tejpur', 'EC-Tejpur'),
+        ('EC-Kalimpong', 'EC-Kalimpong'), ('WC-Jalandhar', 'WC-Jalandhar'), ('WC-Ambala', 'WC-Ambala'),
+        ('WC-Delhi', 'WC-Delhi'), ('WC-Amritsar', 'WC-Amritsar'), ('WC-Ferozepur', 'WC-Ferozepur'),
+        ('WC-Patiala', 'WC-Patiala'), ('WC-Jammu', 'WC-Jammu'), ('WC-Pathankot', 'WC-Pathankot'),
+        ('WC-Chandimandir', 'WC-Chandimandir'), ('WC-Meerut', 'WC-Meerut'),
+        ('CC-Agra', 'CC-Agra'), ('CC-Bareilly', 'CC-Bareilly'), ('CC-Jabalpur', 'CC-Jabalpur'),
+        ('CC-Lucknow', 'CC-Lucknow'), ('CC-Ranikhet', 'CC-Ranikhet'), ('CC-Dehradun', 'CC-Dehradun'),
+        ('NC-Udhampur', 'NC-Udhampur'), ('NC-Baramula', 'NC-Baramula'), ('NC-Kargil', 'NC-Kargil'),
+        ('NC-Leh', 'NC-Leh'), ('NC-Srinagar', 'NC-Srinagar'), ('NC-Kupwara', 'NC-Kupwara'),
+        ('NC-Allahabad', 'NC-Allahabad'), ('NC-Rajouri', 'NC-Rajouri'), ('NC-Akhnoor', 'NC-Akhnoor'),
+        ('NC-Nagrota', 'NC-Nagrota'), ('NC-Palampur', 'NC-Palampur'), ('NC-Mathura', 'NC-Mathura'),
+        ('NC-Karu', 'NC-Karu'),
+    ]
 
 
     s_no = models.IntegerField(null=True, blank=True)
@@ -73,16 +84,16 @@ class Candidate(models.Model):
     fathers_name = models.CharField(max_length=255, null=True, blank=True)
     trade = models.CharField(max_length=50, choices=TRADE_CHOICES, blank=True, null=True)
     rank = models.CharField(max_length=255, null=True, blank=True)
-    dob = models.DateField(blank=True, null=True)
+    dob = models.CharField(max_length=255, blank=True, null=True)
     army_no = models.CharField(max_length=50, unique=True)
     adhaar_no = models.CharField(max_length=20, blank=True, null=True)
     primary_qualification = models.CharField(max_length=255, blank=True, null=True)
-    primary_duration = models.PositiveIntegerField(default=0)
-    primary_credits = models.PositiveIntegerField(default=0)
+    primary_duration = models.CharField(max_length=255, blank=True, null=True)
+    primary_credits = models.CharField(max_length=255, blank=True, null=True)
 
     secondary_qualification = models.CharField(max_length=255, blank=True, null=True)
-    secondary_duration = models.PositiveIntegerField(default=0)
-    secondary_credits = models.PositiveIntegerField(default=0)
+    secondary_duration = models.CharField(max_length=255, blank=True, null=True)
+    secondary_credits = models.CharField(max_length=255, blank=True, null=True)
 
     nsqf_level = models.FloatField(default=0)
     training_center = models.CharField(max_length=255, blank=True, null=True)

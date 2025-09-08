@@ -1,43 +1,177 @@
 {% extends "admin/change_form.html" %}
 {% load static %}
 
+{% block extrastyle %}{{ block.super }}
+<style>
+  .eval-wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  .eval-title {
+    font-size: clamp(1.6rem, 2.2vw, 2.2rem);
+    font-weight: 700;
+    margin: 10px 0 18px;
+    color: #1f2937;
+  }
+
+  .eval-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 26px;
+    background: linear-gradient(180deg, #ffffff, #f9fafb);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.04), 0 2px 6px rgba(0,0,0,0.04);
+  }
+
+  .eval-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  .eval-head h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+  }
+
+  .eval-badge {
+    font-size: .85rem;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+  }
+  .eval-badge--pending {
+    color: #6b7280;
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+  }
+  .eval-badge--checked {
+    color: #065f46;
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(160px, 1fr));
+    gap: 14px;
+  }
+
+  .stat {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px 14px;
+    min-height: 92px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  .stat-label {
+    font-size: .9rem;
+    color: #6b7280;
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-weight: 800;
+    font-size: 1.6rem;
+    color: #111827;
+  }
+
+  .eval-cta {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-primary-big {
+    background: #2563eb;
+    color: #fff !important;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+  }
+  .btn-primary-big:hover {
+    background: #1d4ed8;
+  }
+
+  .btn-soft {
+    background: #f3f4f6;
+    color: #111827 !important;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+  }
+  .btn-soft:hover {
+    background: #e5e7eb;
+  }
+
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .stats-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-  <h1 style="margin-bottom: 20px;">
-        Candidate: {{ original.name }} ({{ original.army_no }}) - {{ original.trade }} – Viva & Practical Marks
+<div class="eval-wrap">
+  <h1 class="eval-title">
+    Candidate: {{ original.name }} ({{ original.army_no }}) – {{ original.trade }} — Viva & Practical Marks
   </h1>
 
-  <!-- Score Summary Card (forced below title) -->
-  <div style="
-      margin-bottom:25px;
-      padding:15px;
-      background:#f0f4f8;
-      border:1px solid #d1d9e0;
-      border-radius:10px;
-      /* ensure it always sits below the H1 regardless of title length/wrapping */
-      clear: both;
-      display: block;
-      width: 100%;
-  ">
-    <h3 style="margin-top:0; margin-bottom:10px;">📊 Score Summary</h3>
-    <div style="display:flex; gap:30px; flex-wrap:wrap; font-size:15px;">
-      <div><strong>Viva 1:</strong> {{ original.viva_1 }}</div>
-      <div><strong>Viva 2:</strong> {{ original.viva_2 }}</div>
-      <div><strong>Practical 1:</strong> {{ original.practical_1 }}</div>
-      <div><strong>Practical 2:</strong> {{ original.practical_2 }}</div>
-    </div>
-    
-    <!-- Grade Button -->
-    {% if show_grade_button %}
-    <div style="margin-top: 15px;">
-      <a href="{% url 'admin:exams_candidate_grade_answers' original.id %}" 
-         class="button" style="background: #007bff; color: white; padding: 10px 15px; 
-                text-decoration: none; border-radius: 5px; display: inline-block;">
-        📝 Grade Answers
-      </a>
-    </div>
-    {% endif %}
-  </div>
+  <section class="eval-card">
+    <div class="eval-head">
+      <h3>📊 Score Summary</h3>
 
-  <!-- Render the default form below -->
-  {{ block.super }}
+      {% if original.is_checked %}
+        <span class="eval-badge eval-badge--checked">✔ Checked</span>
+      {% else %}
+        <span class="eval-badge eval-badge--pending">⏳ Pending Evaluation</span>
+      {% endif %}
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="stat-label">Viva 1</div>
+        <div class="stat-value">{{ original.viva_1|default:0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Viva 2</div>
+        <div class="stat-value">{{ original.viva_2|default:0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Practical 1</div>
+        <div class="stat-value">{{ original.practical_1|default:0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Practical 2</div>
+        <div class="stat-value">{{ original.practical_2|default:0 }}</div>
+      </div>
+    </div>
+
+    <div class="eval-cta">
+      {% if show_grade_button %}
+        <a href="{% url 'admin:exams_candidate_grade_answers' original.id %}" class="btn-primary-big">
+          ▶ Start Evaluating
+        </a>
+      {% endif %}
+      <a href="{% url 'admin:exams_candidate_changelist' %}" class="btn-soft">Back to Exam Evaluation</a>
+    </div>
+  </section>
+</div>
 {% endblock %}

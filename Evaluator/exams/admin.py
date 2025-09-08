@@ -7,10 +7,12 @@ from django.http import HttpResponse, HttpResponseForbidden
 from django.template.response import TemplateResponse
 import time
 from io import BytesIO
+
+from django.utils import timezone
+
 from .models import Candidate, Question, Answer
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Alignment, Border, Side
-
 
 # ------------ Excel helpers ------------
 
@@ -30,45 +32,35 @@ KNOWN_COLS = {
 def _normalize_header(val: str) -> str:
     if not val:
         return ""
-
     key = (val or "").strip().lower().replace(".", "_").replace(" ", "_")
-
     mapping = {
         "s_no": "s_no", "sno": "s_no", "s_no.": "s_no", "s_number": "s_no",
-
         "fathers_name": "fathers_name", "father_name": "fathers_name",
-
         "army_no": "army_no", "army_number": "army_no",
-
         "adhaar_no": "adhaar_no", "aadhar_no": "adhaar_no",
 
         "primary_qualification": "primary_qualification",
-    "primary qualification": "primary_qualification",
-    "primary_duration": "primary_duration",
-    "primary duration": "primary_duration",
-    "primary_credits": "primary_credits",
-    "primary credits": "primary_credits",
+        "primary qualification": "primary_qualification",
+        "primary_duration": "primary_duration",
+        "primary duration": "primary_duration",
+        "primary_credits": "primary_credits",
+        "primary credits": "primary_credits",
 
-    # Secondary
-    "secondary_qualification": "secondary_qualification",
-    "secondary qualification": "secondary_qualification",
-    "secondary_duration": "secondary_duration",
-    "secondary duration": "secondary_duration",
-    "secondary_credits": "secondary_credits",
-    "secondary credits": "secondary_credits",        "nsqf_level": "nsqf_level", "nsqf": "nsqf_level", "nsqflevel": "nsqf_level",
+        "secondary_qualification": "secondary_qualification",
+        "secondary qualification": "secondary_qualification",
+        "secondary_duration": "secondary_duration",
+        "secondary duration": "secondary_duration",
+        "secondary_credits": "secondary_credits",
+        "secondary credits": "secondary_credits",
 
-    "training_center": "training_center", "centre_of_training": "training_center",
+        "nsqf_level": "nsqf_level", "nsqf": "nsqf_level", "nsqflevel": "nsqf_level",
+        "training_center": "training_center", "centre_of_training": "training_center",
 
-        # ✅ Fix for your Excel
-    "center": "center",
-    "centre": "center",
-
-    "trade": "trade",
-    "trd": "trade",       # maps Excel "Tde" → model "trade"
+        # Excel variants
+        "center": "center", "centre": "center",
+        "trade": "trade", "trd": "trade",
     }
-
     return mapping.get(key, key)
-
 
 
 def _read_rows_from_excel(file):
@@ -129,20 +121,51 @@ class CandidateAdmin(admin.ModelAdmin):
     list_filter = ("center", "trade", "is_checked")
     search_fields = ("army_no", "name", "rank", "fathers_name", "district", "state", "trade")
 
-    # ✅ Add custom action
-    actions = ["export_filtered_results"]
+    # ✅ Add custom actions (only one 3-in-1)
+    actions = [
+        "export_selected_results",          # 3-in-1 workbook (PRIMARY, SECONDARY, COMBINED)
+        "export_selected_evaluation_list",  # single-sheet checked metadata
+        "export_selected_export_all",       # single-sheet detailed EXPORT_ALL
+    ]
 
     def get_urls(self):
         urls = super().get_urls()
         custom = [
-            path("import-excel/", self.admin_site.admin_view(self.import_excel_view),
-                 name="exams_candidate_import_excel"),
-            path("export-results-excel/", self.admin_site.admin_view(self.export_results_excel_view),
-                 name="exams_export_results_excel"),  # ✅ Added back
-            path("<int:candidate_id>/save-grades/", self.admin_site.admin_view(self.save_grades_view),
-                 name="exams_candidate_save_grades"),
-            path("<int:candidate_id>/grade-answers/", self.admin_site.admin_view(self.grade_answers_view),
-                 name="exams_candidate_grade_answers"),
+            path(
+                "export-evaluation/",
+                self.admin_site.admin_view(self.export_evaluation_page),
+                name="exams_export_evaluation_page",
+            ),
+            path(
+                "import-excel/",
+                self.admin_site.admin_view(self.import_excel_view),
+                name="exams_candidate_import_excel",
+            ),
+            path(
+                "export-results-excel/",
+                self.admin_site.admin_view(self.export_results_excel_view),
+                name="exams_export_results_excel",
+            ),
+            path(
+                "export-evaluation-sheet/",
+                self.admin_site.admin_view(self.export_evaluation_sheet_view),
+                name="exams_export_evaluation_sheet",
+            ),
+            path(
+                "export-all-sheet/",
+                self.admin_site.admin_view(self.export_all_sheet_view),
+                name="exams_export_all_sheet",
+            ),
+            path(
+                "<int:candidate_id>/save-grades/",
+                self.admin_site.admin_view(self.save_grades_view),
+                name="exams_candidate_save_grades",
+            ),
+            path(
+                "<int:candidate_id>/grade-answers/",
+                self.admin_site.admin_view(self.grade_answers_view),
+                name="exams_candidate_grade_answers",
+            ),
         ]
         return custom + urls
 
@@ -200,6 +223,14 @@ class CandidateAdmin(admin.ModelAdmin):
                 if field_name in request.POST:
                     try:
                         marks_value = request.POST[field_name].strip()
+                        # Server-side guard: if no answer for D/E, disallow marks
+                        ans_part = (answer.question.part or '').strip().upper()
+                        ans_text = (answer.answer or '').strip()
+                        if ans_part in ('D','E') and ans_text == '':
+                            # ignore any provided marks and clear marks
+                            answer.marks_obt = None
+                            answer.save()
+                            continue
                         if marks_value == "":
                             answer.marks_obt = None
                         else:
@@ -210,11 +241,15 @@ class CandidateAdmin(admin.ModelAdmin):
                     except ValueError:
                         pass
 
+            # record checked metadata here as well
             cand.is_checked = True
+            cand.checked_at = timezone.now()
+            if request.user and request.user.is_authenticated:
+                cand.checked_by = request.user
             cand.save()
 
             self.message_user(request, "Grades updated successfully", level=messages.SUCCESS)
-            return redirect(f"{reverse('admin:exams_candidate_change', args=[candidate_id])}?t={time.time()}")
+            return redirect('admin:exams_candidate_changelist')
 
         primary_total_obtained = sum(a.marks_obt or 0 for a in primary_answers)
         secondary_total_obtained = sum(a.marks_obt or 0 for a in secondary_answers)
@@ -252,8 +287,14 @@ class CandidateAdmin(admin.ModelAdmin):
                         ans.save()
                     except ValueError:
                         pass
+            # record checked metadata
+            cand.is_checked = True
+            cand.checked_at = timezone.now()
+            if request.user and request.user.is_authenticated:
+                cand.checked_by = request.user
+            cand.save()
             self.message_user(request, "Grades updated", level=messages.SUCCESS)
-        return redirect("admin:exams_candidate_change", cand.id)
+        return redirect('admin:exams_candidate_changelist')
 
     # ---------- Import Excel ----------
     def import_excel_view(self, request):
@@ -272,31 +313,30 @@ class CandidateAdmin(admin.ModelAdmin):
                             continue
 
                         cand_defaults = {
-    "s_no": row.get("s_no") or 0,
-    "name": (row.get("name") or "").strip(),
-    "center": (row.get("center") or "").strip(),  # ✅ normalize Center
-    "photo": row.get("photo") or None,
-    "fathers_name": (row.get("fathers_name") or "").strip(),
-    "dob": row.get("dob") or None,
-    "rank": (row.get("rank") or "").strip(),
-    "trade": (row.get("trade") or "").strip().upper(),    # ✅ normalize Trade
-    "adhaar_no": (row.get("adhaar_no") or "").strip(),
-    "primary_qualification": (row.get("primary_qualification") or "").strip(),
-    "primary_duration": row.get("primary_duration") or 0,
-    "primary_credits": row.get("primary_credits") or 0,
-
-    "secondary_qualification": (row.get("secondary_qualification") or "").strip(),
-    "secondary_duration": row.get("secondary_duration") or 0,
-    "secondary_credits": row.get("secondary_credits") or 0,
-    "nsqf_level": row.get("nsqf_level") or 0,
-    "training_center": (row.get("training_center") or "").strip(),
-    "district": (row.get("district") or "").strip(),
-    "state": (row.get("state") or "").strip(),
-    "viva_1": row.get("viva_1") or 0,
-    "viva_2": row.get("viva_2") or 0,
-    "practical_1": row.get("practical_1") or 0,
-    "practical_2": row.get("practical_2") or 0,
-}
+                            "s_no": row.get("s_no") or 0,
+                            "name": (row.get("name") or "").strip(),
+                            "center": (row.get("center") or "").strip(),
+                            "photo": (row.get("photo") or None),
+                            "fathers_name": (row.get("fathers_name") or "").strip(),
+                            "dob": row.get("dob") or None,
+                            "rank": (row.get("rank") or "").strip(),
+                            "trade": (row.get("trade") or "").strip().upper(),
+                            "adhaar_no": (row.get("adhaar_no") or "").strip(),
+                            "primary_qualification": (row.get("primary_qualification") or "").strip(),
+                            "primary_duration": row.get("primary_duration") or 0,
+                            "primary_credits": row.get("primary_credits") or 0,
+                            "secondary_qualification": (row.get("secondary_qualification") or "").strip(),
+                            "secondary_duration": row.get("secondary_duration") or 0,
+                            "secondary_credits": row.get("secondary_credits") or 0,
+                            "nsqf_level": row.get("nsqf_level") or 0,
+                            "training_center": (row.get("training_center") or "").strip(),
+                            "district": (row.get("district") or "").strip(),
+                            "state": (row.get("state") or "").strip(),
+                            "viva_1": row.get("viva_1") or 0,
+                            "viva_2": row.get("viva_2") or 0,
+                            "practical_1": row.get("practical_1") or 0,
+                            "practical_2": row.get("practical_2") or 0,
+                        }
 
                         cand, created = Candidate.objects.get_or_create(
                             army_no=army, defaults=cand_defaults
@@ -362,22 +402,451 @@ class CandidateAdmin(admin.ModelAdmin):
     # ---------- Export ALL (button) ----------
     def export_results_excel_view(self, request):
         """
-        Export ALL candidates (ignores filters).
+        Export ALL candidates (ignores filters). This uses _generate_excel which now
+        produces only PRIMARY, SECONDARY and COMBINED sheets (no EXPORT_ALL included).
         """
         queryset = Candidate.objects.all()
         return self._generate_excel(queryset)
 
-    # ---------- Export as Action (Filtered) ----------
-    def export_filtered_results(self, request, queryset):
+    # ---------- NEW action: Export selected queryset as 3-in-1 ----------
+    def export_selected_results(self, request, queryset):
         """
-        Export only currently selected or filtered candidates from the admin list.
+        Admin action: export the selected/filtered queryset as the 3-in-1 workbook
+        (PRIMARY MARKS STATEMENT, SECONDARY MARKS STATEMENT, COMBINED RESULTS).
         """
         return self._generate_excel(queryset)
 
-    export_filtered_results.short_description = "Export filtered candidates to Excel"
+    export_selected_results.short_description = "Export Final Result"
 
-    # ---------- Helper: Generate Excel ----------
+    # ---------- NEW action: Export selected queryset as Evaluation List (single sheet) ----------
+    def export_selected_evaluation_list(self, request, queryset):
+        """
+        Admin action: export selected/filtered queryset as single-sheet evaluation list.
+        """
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "EVALUATION_LIST"
+
+        headers = [
+            "S No", "Army No", "Name", "Centre", "Trade",
+            "Primary Total", "Secondary Total", "Grand Total",
+            "Is Checked", "Checked By", "Checked At"
+        ]
+        ws.append(headers)
+
+        for idx, cand in enumerate(queryset.order_by("center", "army_no"), start=1):
+            primary_total = cand.total_primary()
+            secondary_total = cand.total_secondary()
+            grand = cand.grand_total()
+            is_checked = "Yes" if cand.is_checked else "No"
+            checked_by = ""
+            try:
+                checked_by = cand.checked_by.get_username() if cand.checked_by else ""
+            except Exception:
+                checked_by = str(cand.checked_by) if cand.checked_by else ""
+
+            checked_at = ""
+            if getattr(cand, "checked_at", None):
+                try:
+                    checked_local = timezone.localtime(cand.checked_at)
+                    checked_at = checked_local.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    checked_at = str(cand.checked_at)
+
+            ws.append([
+                idx, cand.army_no or "", cand.name or "", cand.center or "", cand.trade or "",
+                primary_total, secondary_total, grand,
+                is_checked, checked_by, checked_at
+            ])
+
+        # add basic formatting/borders
+        thin_border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+        bold_font = Font(bold=True)
+        center_aligned = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        for cell in ws[1]:
+            if cell.value:
+                cell.font = bold_font
+                cell.alignment = center_aligned
+                cell.border = thin_border
+
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, max_col=ws.max_column):
+            for cell in row:
+                if cell.value is not None:
+                    cell.border = thin_border
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="evaluation_list_selected.xlsx"'
+        return response
+
+    export_selected_evaluation_list.short_description = "Export Evaluation List (checked metadata)"
+
+    # ---------- NEW action: Export selected queryset as EXPORT_ALL (single sheet) ----------
+    def export_selected_export_all(self, request, queryset):
+        """
+        Admin action: export selected/filtered queryset as the EXPORT_ALL single-sheet.
+        """
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "EXPORT_ALL"
+
+        bold_font = Font(bold=True)
+        center_aligned = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+
+        headers = [
+            "S No", "Army No", "Name", "Center", "Photo", "Father's Name", "DOB", "Rank", "Trade", "Aadhar Number",
+            "Primary Qualification", "Primary Duration", "Primary Credits",
+            "Secondary Qualification", "Secondary Duration", "Secondary Credits",
+            "NSQF Level", "Training Centre", "District", "State",
+            "Exam Type", "Question Part", "Question Text",
+            "Correct Answer", "Max Marks", "Candidate Answer", "Marks Awarded",
+            "Primary Total", "Secondary Total", "Grand Total",
+            "Viva 1", "Viva 2", "Practical 1", "Practical 2",
+            "Checked By", "Checked At"
+        ]
+        ws.append(headers)
+        for cell in ws[1]:
+            if cell.value:
+                cell.font = bold_font
+                cell.alignment = center_aligned
+                cell.border = thin_border
+
+        for idx, cand in enumerate(queryset.order_by("center", "army_no"), start=1):
+            # compute totals
+            primary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="primary")
+            )
+            primary_practical = cand.practical_1 or 0
+            primary_viva = cand.viva_1 or 0
+            primary_total = primary_theory + primary_practical + primary_viva
+
+            secondary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="secondary")
+            )
+            secondary_practical = cand.practical_2 or 0
+            secondary_viva = cand.viva_2 or 0
+            secondary_total = secondary_theory + secondary_practical + secondary_viva
+
+            grand_total = (primary_total or 0) + (secondary_total or 0)
+
+            answers_qs = cand.answer_set.select_related("question").all()
+            if not answers_qs:
+                checked_by = ""
+                try:
+                    checked_by = cand.checked_by.get_username() if cand.checked_by else ""
+                except Exception:
+                    checked_by = str(cand.checked_by) if cand.checked_by else ""
+
+                checked_at = ""
+                if getattr(cand, "checked_at", None):
+                    try:
+                        checked_local = timezone.localtime(cand.checked_at)
+                        checked_at = checked_local.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        checked_at = str(cand.checked_at)
+
+                ws.append([
+                    idx, cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
+                    cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or "", cand.adhaar_no or "",
+                    cand.primary_qualification or "", cand.primary_duration or "", cand.primary_credits or "",
+                    cand.secondary_qualification or "", cand.secondary_duration or "", cand.secondary_credits or "",
+                    cand.nsqf_level or "", cand.training_center or "", cand.district or "", cand.state or "",
+                    "", "", "", "", "", "", primary_total, secondary_total, grand_total,
+                    cand.viva_1 or 0, cand.viva_2 or 0, cand.practical_1 or 0, cand.practical_2 or 0,
+                    checked_by, checked_at
+                ])
+            else:
+                for ans in answers_qs:
+                    q = getattr(ans, "question", None)
+                    question_text = (getattr(q, "question", "") or "")[:32767]
+                    question_part = getattr(q, "part", "") or ""
+                    question_exam_type = getattr(q, "exam_type", "") or ""
+                    correct_answer = getattr(q, "correct_answer", "") or ""
+                    max_marks = getattr(q, "max_marks", "") or ""
+
+                    candidate_answer = getattr(ans, "answer", "") or ""
+                    marks_awarded = getattr(ans, "marks_obt", "") or ""
+
+                    checked_by = ""
+                    try:
+                        checked_by = cand.checked_by.get_username() if cand.checked_by else ""
+                    except Exception:
+                        checked_by = str(cand.checked_by) if cand.checked_by else ""
+
+                    checked_at = ""
+                    if getattr(cand, "checked_at", None):
+                        try:
+                            checked_local = timezone.localtime(cand.checked_at)
+                            checked_at = checked_local.strftime("%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            checked_at = str(cand.checked_at)
+
+                    ws.append([
+                        idx, cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
+                        cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or ", cand.adhaar_no or ",
+                        cand.primary_qualification or "", cand.primary_duration or "", cand.primary_credits or "",
+                        cand.secondary_qualification or "", cand.secondary_duration or "", cand.secondary_credits or "",
+                        cand.nsqf_level or "", cand.training_center or "", cand.district or "", cand.state or "",
+                        question_exam_type, question_part, question_text,
+                        correct_answer, max_marks, candidate_answer, marks_awarded,
+                        primary_total, secondary_total, grand_total,
+                        cand.viva_1 or 0, cand.viva_2 or 0, cand.practical_1 or 0, cand.practical_2 or 0,
+                        checked_by, checked_at
+                    ])
+
+        # add thin borders
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column):
+            for cell in row:
+                if cell.value is not None:
+                    cell.border = thin_border
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="export_all_selected.xlsx"'
+        return response
+
+    export_selected_export_all.short_description = "Export Answer Sheet"
+
+    # ---------- Export page (button only) ----------
+    def export_evaluation_page(self, request):
+        ctx = {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "title": "Export Evaluation Data",
+        }
+        return render(request, "admin/exams/export_evaluation.html", ctx)
+
+    # ---------- NEW: single-sheet export view (global) ----------
+    def export_evaluation_sheet_view(self, request):
+        queryset = Candidate.objects.all().order_by('center', 'army_no')
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "EVALUATION_LIST"
+
+        headers = [
+            "S No", "Army No", "Name", "Centre", "Trade",
+            "Primary Total", "Secondary Total", "Grand Total",
+            "Is Checked", "Checked By", "Checked At"
+        ]
+        ws.append(headers)
+
+        for idx, cand in enumerate(queryset, start=1):
+            primary_total = cand.total_primary()
+            secondary_total = cand.total_secondary()
+            grand = cand.grand_total()
+            is_checked = "Yes" if cand.is_checked else "No"
+            checked_by = ""
+            try:
+                checked_by = cand.checked_by.get_username() if cand.checked_by else ""
+            except Exception:
+                checked_by = str(cand.checked_by) if cand.checked_by else ""
+
+            checked_at = ""
+            if getattr(cand, "checked_at", None):
+                try:
+                    checked_local = timezone.localtime(cand.checked_at)
+                    checked_at = checked_local.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    checked_at = str(cand.checked_at)
+
+            ws.append([
+                idx, cand.army_no or "", cand.name or "", cand.center or "", cand.trade or "",
+                primary_total, secondary_total, grand,
+                is_checked, checked_by, checked_at
+            ])
+
+        thin_border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+        bold_font = Font(bold=True)
+        center_aligned = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        for cell in ws[1]:
+            if cell.value:
+                cell.font = bold_font
+                cell.alignment = center_aligned
+                cell.border = thin_border
+
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, max_col=ws.max_column):
+            for cell in row:
+                if cell.value is not None:
+                    cell.border = thin_border
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="evaluation_list.xlsx"'
+        return response
+
+    # ---------- NEW: export only EXPORT_ALL as single sheet (global) ----------
+    def export_all_sheet_view(self, request):
+        queryset = Candidate.objects.all().order_by("center", "army_no")
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "EXPORT_ALL"
+
+        bold_font = Font(bold=True)
+        center_aligned = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+
+        headers = [
+            "S No", "Army No", "Name", "Center", "Photo", "Father's Name", "DOB", "Rank", "Trade", "Aadhar Number",
+            "Primary Qualification", "Primary Duration", "Primary Credits",
+            "Secondary Qualification", "Secondary Duration", "Secondary Credits",
+            "NSQF Level", "Training Centre", "District", "State",
+            "Exam Type", "Question Part", "Question Text",
+            "Correct Answer", "Max Marks", "Candidate Answer", "Marks Awarded",
+            "Primary Total", "Secondary Total", "Grand Total",
+            "Viva 1", "Viva 2", "Practical 1", "Practical 2",
+            "Checked By", "Checked At"
+        ]
+        ws.append(headers)
+        for cell in ws[1]:
+            if cell.value:
+                cell.font = bold_font
+                cell.alignment = center_aligned
+                cell.border = thin_border
+
+        for idx, cand in enumerate(queryset, start=1):
+            # compute totals
+            primary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="primary")
+            )
+            primary_practical = cand.practical_1 or 0
+            primary_viva = cand.viva_1 or 0
+            primary_total = primary_theory + primary_practical + primary_viva
+
+            secondary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="secondary")
+            )
+            secondary_practical = cand.practical_2 or 0
+            secondary_viva = cand.viva_2 or 0
+            secondary_total = secondary_theory + secondary_practical + secondary_viva
+
+            grand_total = (primary_total or 0) + (secondary_total or 0)
+
+            answers_qs = cand.answer_set.select_related("question").all()
+            if not answers_qs:
+                checked_by = ""
+                try:
+                    checked_by = cand.checked_by.get_username() if cand.checked_by else ""
+                except Exception:
+                    checked_by = str(cand.checked_by) if cand.checked_by else ""
+
+                checked_at = ""
+                if getattr(cand, "checked_at", None):
+                    try:
+                        checked_local = timezone.localtime(cand.checked_at)
+                        checked_at = checked_local.strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        checked_at = str(cand.checked_at)
+
+                ws.append([
+                    idx, cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
+                    cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or ", cand.adhaar_no or ",
+                    cand.primary_qualification or "", cand.primary_duration or "", cand.primary_credits or "",
+                    cand.secondary_qualification or "", cand.secondary_duration or "", cand.secondary_credits or "",
+                    cand.nsqf_level or "", cand.training_center or "", cand.district or "", cand.state or "",
+                    "", "", "", "", "", "", primary_total, secondary_total, grand_total,
+                    cand.viva_1 or 0, cand.viva_2 or 0, cand.practical_1 or 0, cand.practical_2 or 0,
+                    checked_by, checked_at
+                ])
+            else:
+                for ans in answers_qs:
+                    q = getattr(ans, "question", None)
+                    question_text = (getattr(q, "question", "") or "")[:32767]
+                    question_part = getattr(q, "part", "") or ""
+                    question_exam_type = getattr(q, "exam_type", "") or ""
+                    correct_answer = getattr(q, "correct_answer", "") or ""
+                    max_marks = getattr(q, "max_marks", "") or ""
+
+                    candidate_answer = getattr(ans, "answer", "") or ""
+                    marks_awarded = getattr(ans, "marks_obt", "") or ""
+
+                    checked_by = ""
+                    try:
+                        checked_by = cand.checked_by.get_username() if cand.checked_by else ""
+                    except Exception:
+                        checked_by = str(cand.checked_by) if cand.checked_by else ""
+
+                    checked_at = ""
+                    if getattr(cand, "checked_at", None):
+                        try:
+                            checked_local = timezone.localtime(cand.checked_at)
+                            checked_at = checked_local.strftime("%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            checked_at = str(cand.checked_at)
+
+                    ws.append([
+                        idx, cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
+                        cand.fathers_name or "", cand.dob or "", cand.rank or ", cand.trade or ", cand.adhaar_no or "",
+                        cand.primary_qualification or "", cand.primary_duration or ", cand.primary_credits or ",
+                        cand.secondary_qualification or "", cand.secondary_duration or ", cand.secondary_credits or ",
+                        cand.nsqf_level or "", cand.training_center or ", cand.district or ", cand.state or "",
+                        question_exam_type, question_part, question_text,
+                        correct_answer, max_marks, candidate_answer, marks_awarded,
+                        primary_total, secondary_total, grand_total,
+                        cand.viva_1 or 0, cand.viva_2 or 0, cand.practical_1 or 0, cand.practical_2 or 0,
+                        checked_by, checked_at
+                    ])
+
+        # add thin borders
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column):
+            for cell in row:
+                if cell.value is not None:
+                    cell.border = thin_border
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="export_all.xlsx"'
+        return response
+
+    # ---------- Helper: Generate Excel (INSIDE the class) ----------
     def _generate_excel(self, queryset):
+        """
+        Produces a workbook with three sheets in this order:
+        1) PRIMARY MARKS STATEMENT
+        2) SECONDARY MARKS STATEMENT
+        3) COMBINED RESULTS
+        (This intentionally does NOT add the EXPORT_ALL sheet)
+        """
         wb = Workbook()
 
         ws_primary = wb.active
@@ -428,17 +897,15 @@ class CandidateAdmin(admin.ModelAdmin):
         # ----- Headers for Primary & Secondary -----
         primary_headers = [
             "S No", "Name of Candidate", "Photograph", "Father's Name", "Trade", "DOB",
-            "Enrolment No", "Aadhar Number",     "Primary Qualification", "Primary Duration", 
-            "Primary Credits",
-             "NSQF Level", "Training Centre",
-            "District", "State", "Percentage"
+            "Enrolment No", "Aadhar Number",
+            "Primary Qualification", "Primary Duration", "Primary Credits",
+            "NSQF Level", "Training Centre", "District", "State", "Percentage"
         ]
         secondary_headers = [
             "S No", "Name of Candidate", "Photograph", "Father's Name", "Trade", "DOB",
-            "Enrolment No", "Aadhar Number",     "Secondary Qualification", "Secondary Duration", 
-            "Secondary Credits",
-             "NSQF Level", "Training Centre",
-            "District", "State", "Percentage"
+            "Enrolment No", "Aadhar Number",
+            "Secondary Qualification", "Secondary Duration", "Secondary Credits",
+            "NSQF Level", "Training Centre", "District", "State", "Percentage"
         ]
 
         ws_primary.append(primary_headers)
@@ -484,7 +951,7 @@ class CandidateAdmin(admin.ModelAdmin):
                 idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
                 cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
                 cand.primary_qualification or "", cand.primary_duration or "",
-                 cand.primary_credits or "",  cand.nsqf_level or "", cand.training_center or "",
+                cand.primary_credits or "", cand.nsqf_level or "", cand.training_center or "",
                 cand.district or "", cand.state or "", primary_percentage
             ])
 
@@ -503,7 +970,7 @@ class CandidateAdmin(admin.ModelAdmin):
                     if cell.value is not None:
                         cell.border = thin_border
 
-        # ✅ Return Excel file
+        # ✅ Return Excel file (3 sheets only)
         output = BytesIO()
         wb.save(output)
         output.seek(0)
@@ -512,5 +979,5 @@ class CandidateAdmin(admin.ModelAdmin):
             output,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        response["Content-Disposition"] = 'attachment; filename="results.xlsx"'
+        response["Content-Disposition"] = 'attachment; filename="results_3in1.xlsx"'
         return response

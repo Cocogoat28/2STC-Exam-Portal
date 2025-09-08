@@ -1,229 +1,529 @@
-{% extends "admin/base_site.html" %}
-{% load i18n %}
-{% block title %}Grade Candidate{% endblock %}
+from __future__ import annotations
+from django.contrib import admin, messages
+from django.db import transaction
+from django.shortcuts import render, redirect
+from django.urls import path, reverse
+from django.http import HttpResponse, HttpResponseForbidden
+from django.template.response import TemplateResponse
+import time
+from io import BytesIO
 
-{% block content %}
-<style>
-  /* Full screen container */
-  .grade-container {
-    width: 95%;
-    margin: 10px auto;
-    padding: 20px;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    font-family: Arial, sans-serif;
-  }
+from .models import Candidate, Question, Answer
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Font, Alignment, Border, Side
 
-  /* Header */
-  .grade-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 25px;
-    border-bottom: 2px solid #eee;
-    padding-bottom: 10px;
-  }
-  .grade-header h2 {
-    margin: 0;
-    font-size: 24px;
-    color: #222;
-  }
-  .badge-total {
-    background: #007bff;
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-weight: bold;
-    font-size: 15px;
-  }
+# ------------ Excel helpers ------------
 
-  /* Marks input section */
-  .marks-section {
-    display: flex;
-    gap: 40px;
-    margin-bottom: 20px;
-  }
-  .marks-section label {
-    font-weight: bold;
-    color: #444;
-  }
-  .marks-section input {
-    width: 140px;
-    padding: 6px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    margin-top: 4px;
-    font-size: 15px;
-  }
+REQUIRED_COLS = {"army_no", "exam_type", "question", "answer"}
+KNOWN_COLS = {
+    "s_no", "name", "center", "photo", "fathers_name", "dob", "trade", "rank", "army_no", "adhaar_no",
+    # NEW:
+    "primary_qualification", "primary_duration", "primary_credits",
+    "secondary_qualification", "secondary_duration", "secondary_credits",
+    # existing:
+    "nsqf_level", "training_center", "district", "state", "viva_1", "viva_2",
+    "practical_1", "practical_2", "exam_type", "question", "answer",
+    "correct_answer", "max_marks", "part",
+}
 
-  /* Answers Table */
-  table.answers {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-  }
-  table.answers thead {
-    background: #f7f7f7;
-  }
-  table.answers th, table.answers td {
-    border: 1px solid #ddd;
-    padding: 10px;
-    font-size: 15px;
-    vertical-align: middle;
-  }
-  table.answers th {
-    text-align: center;
-    font-weight: bold;
-    color: #333;
-  }
-  table.answers tr:nth-child(even) {
-    background: #fafafa;
-  }
 
-  /* Mark input highlight logic */
-  .mark-input {
-    width: 80px;
-    text-align: center;
-    padding: 6px;
-    border: 1px solid #bbb;
-    border-radius: 5px;
-    background: #f8d7da; /* red background initially */
-  }
-  .mark-input.checked {
-    background: #d4edda; /* green when checked */
-  }
+def _normalize_header(val: str) -> str:
+    if not val:
+        return ""
+    key = (val or "").strip().lower().replace(".", "_").replace(" ", "_")
+    mapping = {
+        "s_no": "s_no", "sno": "s_no", "s_no.": "s_no", "s_number": "s_no",
+        "fathers_name": "fathers_name", "father_name": "fathers_name",
+        "army_no": "army_no", "army_number": "army_no",
+        "adhaar_no": "adhaar_no", "aadhar_no": "adhaar_no",
 
-  /* Save button */
-  .btn-save {
-    background: #28a745;
-    border: none;
-    padding: 12px 25px;
-    border-radius: 8px;
-    color: white;
-    font-weight: bold;
-    font-size: 16px;
-    cursor: pointer;
-    margin-top: 20px;
-  }
-  .btn-save:hover {
-    background: #218838;
-  }
-</style>
+        "primary_qualification": "primary_qualification",
+        "primary qualification": "primary_qualification",
+        "primary_duration": "primary_duration",
+        "primary duration": "primary_duration",
+        "primary_credits": "primary_credits",
+        "primary credits": "primary_credits",
 
-<div class="grade-container">
-  <!-- Header -->
-  <div class="grade-header">
-    <h2>Grade: {{ candidate.army_number }} — {{ candidate.name }}</h2>
-    <span class="badge-total">Total (Live): <span id="live-total">0</span></span>
-  </div>
+        "secondary_qualification": "secondary_qualification",
+        "secondary qualification": "secondary_qualification",
+        "secondary_duration": "secondary_duration",
+        "secondary duration": "secondary_duration",
+        "secondary_credits": "secondary_credits",
+        "secondary credits": "secondary_credits",
 
-  <!-- Marks inputs -->
-  <form method="post" id="grade-form">{% csrf_token %}
-    <div class="marks-section">
-      <div>
-        <label for="id_viva">Viva Marks:</label><br>
-        <input type="number" id="id_viva" name="viva_marks" 
-               value="{{ candidate.viva_marks|default_if_none:'' }}">
-      </div>
-      <div>
-        <label for="id_practical">Practical Marks:</label><br>
-        <input type="number" id="id_practical" name="practical_marks" 
-               value="{{ candidate.practical_marks|default_if_none:'' }}">
-      </div>
-      <div>
-        <label>Objective Sum:</label><br>
-        <strong><span id="objective-sum">0</span></strong>
-      </div>
-    </div>
+        "nsqf_level": "nsqf_level", "nsqf": "nsqf_level", "nsqflevel": "nsqf_level",
+        "training_center": "training_center", "centre_of_training": "training_center",
 
-    <!-- Answers Table -->
-    <h3>Answers</h3>
-    <table class="answers">
-      <thead>
-        <tr>
-          <th style="width:80px;">Q No</th>
-          <th>Question</th>
-          <th style="width:35%;">Candidate Answer</th>
-          <th style="width:120px;">Marks Awarded</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for ans in answers %}
-        <tr>
-          <td style="text-align:center;">{{ ans.question.number|default:"" }}</td>
-          <td>{{ ans.question.text }}</td>
-          <td>{{ ans.answer_text|default:"(no answer)" }}</td>
-          <td style="text-align:center;">
-            <input type="number" step="1" name="mark_{{ ans.pk }}"
-                   value="{{ ans.marks_awarded|default_if_none:'' }}"
-                   class="mark-input" data-ans-pk="{{ ans.pk }}"
-                   data-initial-value="{{ ans.marks_awarded|default_if_none:'' }}">
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="4" style="text-align:center; color:#888;">No answers found for this candidate.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-
-    <!-- Save Button -->
-    <button type="submit" class="btn-save">💾 Save Marks</button>
-  </form>
-</div>
-
-<script>
-  function computeTotals() {
-    const markInputs = document.querySelectorAll('.mark-input');
-    let objectiveSum = 0;
-    markInputs.forEach((el) => {
-      const v = parseFloat(el.value);
-      if (!isNaN(v)) objectiveSum += v;
-    });
-    const viva = parseFloat(document.getElementById('id_viva').value) || 0;
-    const prac = parseFloat(document.getElementById('id_practical').value) || 0;
-    document.getElementById('objective-sum').textContent = objectiveSum;
-    document.getElementById('live-total').textContent = (objectiveSum + viva + prac);
-  }
-
-  function updateCheckStatus(input) {
-    // Check if the input has a valid numeric value (including 0)
-    if (input.value !== "" && !isNaN(input.value) && input.value.trim() !== '') {
-      // Only turn green if the value is different from the initial value
-      // or if the initial value was empty/not set
-      const initialValue = input.getAttribute('data-initial-value');
-      if (initialValue === '' || initialValue !== input.value) {
-        input.classList.add("checked");
-      } else {
-        input.classList.remove("checked");
-      }
-    } else {
-      input.classList.remove("checked");
+        # Excel variants
+        "center": "center", "centre": "center",
+        "trade": "trade", "trd": "trade",
     }
-  }
+    return mapping.get(key, key)
 
-  document.addEventListener('input', function(e) {
-    if (e.target.classList.contains('mark-input')) {
-      updateCheckStatus(e.target);
-      computeTotals();
-    }
-    if (e.target.id === 'id_viva' || e.target.id === 'id_practical') {
-      computeTotals();
-    }
-  });
 
-  document.addEventListener('DOMContentLoaded', function() {
-    // Initialize all mark inputs with correct status
-    document.querySelectorAll('.mark-input').forEach((el) => {
-      // For inputs with initial value of 0, keep them red
-      const initialValue = el.getAttribute('data-initial-value');
-      if (initialValue === '0' || initialValue === '') {
-        el.classList.remove("checked");
-      } else if (initialValue) {
-        el.classList.add("checked");
-      }
-    });
-    computeTotals();
-  });
-</script>
-{% endblock %}
+def _read_rows_from_excel(file):
+    wb = load_workbook(file, data_only=True)
+    ws = wb.worksheets[0]
+
+    headers = [_normalize_header(c.value) for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=False))]
+    header_index = {h: idx for idx, h in enumerate(headers) if h}
+
+    missing = REQUIRED_COLS - set(header_index)
+    if missing:
+        raise ValueError(f"Missing required columns in Excel: {', '.join(missing)}")
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        data = {}
+        for key, idx in header_index.items():
+            data[key] = row[idx]
+        yield data
+
+
+def _get_or_create_question(exam_type, text, correct, max_marks, part=None):
+    if part:
+        part = str(part).strip().upper()
+    q = Question.objects.filter(exam_type=exam_type, question=text).first()
+    correct_clean = (correct or "")
+    if isinstance(correct_clean, str) and correct_clean.strip().lower() == "null":
+        correct_clean = None
+
+    if q is None:
+        q = Question.objects.create(
+            exam_type=exam_type,
+            question=text,
+            part=part,
+            correct_answer=correct_clean,
+            max_marks=max_marks or 0,
+        )
+    else:
+        q.correct_answer = correct_clean
+        q.max_marks = max_marks or 0
+        q.part = part or q.part
+        q.save()
+    return q
+
+
+# ------------ Custom Admins ------------
+
+class AnswerInline(admin.TabularInline):
+    model = Answer
+    extra = 0
+
+
+@admin.register(Candidate)
+class CandidateAdmin(admin.ModelAdmin):
+    change_list_template = "admin/exams/candidate/change_list.html"
+    change_form_template = "admin/exams/candidate/change_form.html"
+    readonly_fields = ("viva_1", "viva_2", "practical_1", "practical_2")
+    list_display = ("army_no", "name", "center", "trade", "total_primary", "total_secondary", "grand_total", "is_checked")
+    list_filter = ("center", "trade", "is_checked")
+    search_fields = ("army_no", "name", "rank", "fathers_name", "district", "state", "trade")
+
+    # ✅ Add custom action
+    actions = ["export_filtered_results"]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path(
+                "export-evaluation/",
+                self.admin_site.admin_view(self.export_evaluation_page),
+                name="exams_export_evaluation_page",
+            ),
+            path(
+                "import-excel/",
+                self.admin_site.admin_view(self.import_excel_view),
+                name="exams_candidate_import_excel",
+            ),
+            path(
+                "export-results-excel/",
+                self.admin_site.admin_view(self.export_results_excel_view),
+                name="exams_export_results_excel",
+            ),
+            path(
+                "<int:candidate_id>/save-grades/",
+                self.admin_site.admin_view(self.save_grades_view),
+                name="exams_candidate_save_grades",
+            ),
+            path(
+                "<int:candidate_id>/grade-answers/",
+                self.admin_site.admin_view(self.grade_answers_view),
+                name="exams_candidate_grade_answers",
+            ),
+        ]
+        return custom + urls
+
+    # ---------- Candidate change form ----------
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        cand = Candidate.objects.get(pk=object_id)
+        answers = Answer.objects.filter(candidate=cand).select_related("question")
+
+        primary = [a for a in answers if a.question.exam_type.lower() == "primary"]
+        secondary = [a for a in answers if a.question.exam_type.lower() == "secondary"]
+
+        extra_context = extra_context or {}
+        extra_context["primary_answers"] = primary
+        extra_context["secondary_answers"] = secondary
+        extra_context["viva_total"] = cand.viva_1 + cand.viva_2
+        extra_context["practical_total"] = cand.practical_1 + cand.practical_2
+        extra_context["show_grade_button"] = True
+
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
+
+    # ---------- Grade Answers View ----------
+    def grade_answers_view(self, request, candidate_id):
+        if not request.user.has_perm('exams.change_answer'):
+            return HttpResponseForbidden("You don't have permission to grade answers")
+
+        cand = Candidate.objects.get(pk=candidate_id)
+        answers = Answer.objects.filter(candidate=cand).select_related("question")
+
+        # Auto-marking logic
+        for ans in answers:
+            cand_ans = (ans.answer or "").strip().lower()
+            corr_raw = (ans.question.correct_answer or "").strip().lower()
+            if cand_ans and corr_raw:
+                correct_list = [c.strip() for c in corr_raw.split(",")]
+                if cand_ans in correct_list:
+                    if ans.marks_obt is None or ans.marks_obt == 0:
+                        ans.marks_obt = ans.question.max_marks
+                        ans.save()
+
+        primary_answers = [a for a in answers if a.question.exam_type.lower() == "primary"]
+        secondary_answers = [a for a in answers if a.question.exam_type.lower() == "secondary"]
+
+        def group_answers(ans_list):
+            def norm(p): return (p or "").strip().upper()
+            return {
+                "MCQ": [a for a in ans_list if norm(a.question.part) in ("A", "B", "C")],
+                "True/False": [a for a in ans_list if norm(a.question.part) == "F"],
+                "Short Answer & Fill in Blanks": [a for a in ans_list if norm(a.question.part) == "D"],
+                "Long Answer": [a for a in ans_list if norm(a.question.part) == "E"],
+            }
+
+        if request.method == "POST":
+            for answer in answers:
+                field_name = f"marks_{answer.id}"
+                if field_name in request.POST:
+                    try:
+                        marks_value = request.POST[field_name].strip()
+                        if marks_value == "":
+                            answer.marks_obt = None
+                        else:
+                            new_marks = int(marks_value)
+                            if 0 <= new_marks <= answer.question.max_marks:
+                                answer.marks_obt = new_marks
+                        answer.save()
+                    except ValueError:
+                        pass
+
+            cand.is_checked = True
+            cand.save()
+
+            self.message_user(request, "Grades updated successfully", level=messages.SUCCESS)
+            return redirect(f"{reverse('admin:exams_candidate_change', args=[candidate_id])}?t={time.time()}")
+
+        primary_total_obtained = sum(a.marks_obt or 0 for a in primary_answers)
+        secondary_total_obtained = sum(a.marks_obt or 0 for a in secondary_answers)
+
+        all_marks_assigned = all(
+            answer.marks_obt is not None and answer.marks_obt != 0
+            for answer in answers
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Grade Answers - {cand.name} ({cand.army_no}) - {cand.trade}",
+            "candidate": cand,
+            "primary_answers": primary_answers,
+            "secondary_answers": secondary_answers,
+            "primary_groups": group_answers(primary_answers),
+            "secondary_groups": group_answers(secondary_answers),
+            "primary_total_obtained": primary_total_obtained,
+            "secondary_total_obtained": secondary_total_obtained,
+            "all_marks_assigned": all_marks_assigned,
+            "opts": self.model._meta,
+        }
+        return TemplateResponse(request, "admin/exams/candidate/grade_answers.html", context)
+
+    # ---------- Save Grades View ----------
+    def save_grades_view(self, request, candidate_id):
+        cand = Candidate.objects.get(pk=candidate_id)
+        if request.method == "POST":
+            for ans in Answer.objects.filter(candidate=cand):
+                field_name = f"marks_{ans.id}"
+                if field_name in request.POST:
+                    try:
+                        new_marks = int(request.POST[field_name])
+                        ans.marks_obt = new_marks
+                        ans.save()
+                    except ValueError:
+                        pass
+            self.message_user(request, "Grades updated", level=messages.SUCCESS)
+        return redirect("admin:exams_candidate_change", cand.id)
+
+    # ---------- Import Excel ----------
+    def import_excel_view(self, request):
+        if request.method == "POST" and request.FILES.get("excel"):
+            excel_file = request.FILES["excel"]
+            created_candidates = updated_candidates = 0
+            created_answers = updated_answers = 0
+            created_questions = 0
+
+            try:
+                with transaction.atomic():
+                    seen_questions_before = set(Question.objects.values_list("id", flat=True))
+                    for row in _read_rows_from_excel(excel_file):
+                        army = (row.get("army_no") or "").strip()
+                        if not army:
+                            continue
+
+                        cand_defaults = {
+                            "s_no": row.get("s_no") or 0,
+                            "name": (row.get("name") or "").strip(),
+                            "center": (row.get("center") or "").strip(),
+                            "photo": row.get("photo") or None,
+                            "fathers_name": (row.get("fathers_name") or "").strip(),
+                            "dob": row.get("dob") or None,
+                            "rank": (row.get("rank") or "").strip(),
+                            "trade": (row.get("trade") or "").strip().upper(),
+                            "adhaar_no": (row.get("adhaar_no") or "").strip(),
+                            "primary_qualification": (row.get("primary_qualification") or "").strip(),
+                            "primary_duration": row.get("primary_duration") or 0,
+                            "primary_credits": row.get("primary_credits") or 0,
+                            "secondary_qualification": (row.get("secondary_qualification") or "").strip(),
+                            "secondary_duration": row.get("secondary_duration") or 0,
+                            "secondary_credits": row.get("secondary_credits") or 0,
+                            "nsqf_level": row.get("nsqf_level") or 0,
+                            "training_center": (row.get("training_center") or "").strip(),
+                            "district": (row.get("district") or "").strip(),
+                            "state": (row.get("state") or "").strip(),
+                            "viva_1": row.get("viva_1") or 0,
+                            "viva_2": row.get("viva_2") or 0,
+                            "practical_1": row.get("practical_1") or 0,
+                            "practical_2": row.get("practical_2") or 0,
+                        }
+
+                        cand, created = Candidate.objects.get_or_create(
+                            army_no=army, defaults=cand_defaults
+                        )
+                        if not created:
+                            for k, v in cand_defaults.items():
+                                if v and getattr(cand, k) != v:
+                                    setattr(cand, k, v)
+                            cand.save()
+                            updated_candidates += 1
+                        else:
+                            created_candidates += 1
+
+                        q = _get_or_create_question(
+                            exam_type=row.get("exam_type") or "",
+                            text=row.get("question") or "",
+                            correct=row.get("correct_answer"),
+                            max_marks=row.get("max_marks") or 0,
+                            part=row.get("part") or None,
+                        )
+                        if q.id not in seen_questions_before:
+                            created_questions += 1
+                            seen_questions_before.add(q.id)
+
+                        ans_text = (row.get("answer") or "").strip()
+                        marks = row.get("marks_obt") or 0
+
+                        ans, a_created = Answer.objects.get_or_create(
+                            candidate=cand, question=q,
+                            defaults={"answer": ans_text, "marks_obt": int(marks)},
+                        )
+                        if a_created:
+                            created_answers += 1
+                        else:
+                            if ans.answer != ans_text or ans.marks_obt != int(marks):
+                                ans.answer = ans_text
+                                ans.marks_obt = int(marks)
+                                ans.save()
+                                updated_answers += 1
+
+                self.message_user(
+                    request,
+                    (
+                        f"Import complete. "
+                        f"Candidates: +{created_candidates} / updated {updated_candidates}. "
+                        f"Questions: +{created_questions}. "
+                        f"Answers: +{created_answers} / updated {updated_answers}."
+                    ),
+                    level=messages.SUCCESS,
+                )
+                return redirect("admin:exams_candidate_changelist")
+
+            except Exception as e:
+                self.message_user(request, f"Import failed: {e}", level=messages.ERROR)
+
+        ctx = {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "title": "Import candidates & answers from Excel",
+        }
+        return render(request, "admin/exams/candidate/import_excel.html", ctx)
+
+    # ---------- Export ALL (button) ----------
+    def export_results_excel_view(self, request):
+        """
+        Export ALL candidates (ignores filters).
+        """
+        queryset = Candidate.objects.all()
+        return self._generate_excel(queryset)
+
+    # ---------- Export as Action (Filtered) ----------
+    def export_filtered_results(self, request, queryset):
+        """
+        Export only currently selected or filtered candidates from the admin list.
+        """
+        return self._generate_excel(queryset)
+
+    export_filtered_results.short_description = "Export filtered candidates to Excel"
+
+    # ---------- Export page (button only) ----------
+    def export_evaluation_page(self, request):
+        ctx = {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "title": "Export Evaluation Data",
+        }
+        return render(request, "admin/exams/export_evaluation.html", ctx)
+
+    # ---------- Helper: Generate Excel (INSIDE the class) ----------
+    def _generate_excel(self, queryset):
+        wb = Workbook()
+
+        ws_primary = wb.active
+        ws_primary.title = "PRIMARY MARKS STATEMENT"
+        ws_secondary = wb.create_sheet(title="SECONDARY MARKS STATEMENT")
+        ws_combined = wb.create_sheet(title="COMBINED RESULTS")
+
+        bold_font = Font(bold=True)
+        center_aligned = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+
+        # ----- Combined Sheet Formatting -----
+        ws_combined.merge_cells("A1:A2")
+        ws_combined.merge_cells("B1:B2")
+        ws_combined.merge_cells("C1:C2")
+        ws_combined.merge_cells("D1:D2")
+        ws_combined.merge_cells("E1:E2")
+        ws_combined.merge_cells("F1:F2")
+        ws_combined.merge_cells("G1:K1")
+        ws_combined.merge_cells("L1:P1")
+
+        ws_combined["A1"] = "S No"
+        ws_combined["B1"] = "Centre"
+        ws_combined["C1"] = "Army No"
+        ws_combined["D1"] = "Rk"
+        ws_combined["E1"] = "Tde"
+        ws_combined["F1"] = "Name"
+        ws_combined["G1"] = "Primary-1"
+        ws_combined["L1"] = "Secondary-1"
+
+        sub_headers = [
+            "Theory*", "Practical*", "Viva*", "Total", "Percentage (%)",
+            "Theory*", "Practical*", "Viva*", "Total", "Percentage (%)"
+        ]
+        for i, val in enumerate(sub_headers, start=7):
+            ws_combined.cell(row=2, column=i, value=val)
+
+        for row in ws_combined.iter_rows(min_row=1, max_row=2):
+            for cell in row:
+                if cell.value:
+                    cell.font = bold_font
+                    cell.alignment = center_aligned
+                    cell.border = thin_border
+
+        # ----- Headers for Primary & Secondary -----
+        primary_headers = [
+            "S No", "Name of Candidate", "Photograph", "Father's Name", "Trade", "DOB",
+            "Enrolment No", "Aadhar Number",
+            "Primary Qualification", "Primary Duration", "Primary Credits",
+            "NSQF Level", "Training Centre", "District", "State", "Percentage"
+        ]
+        secondary_headers = [
+            "S No", "Name of Candidate", "Photograph", "Father's Name", "Trade", "DOB",
+            "Enrolment No", "Aadhar Number",
+            "Secondary Qualification", "Secondary Duration", "Secondary Credits",
+            "NSQF Level", "Training Centre", "District", "State", "Percentage"
+        ]
+
+        ws_primary.append(primary_headers)
+        ws_secondary.append(secondary_headers)
+
+        for row in ws_primary.iter_rows(min_row=1, max_row=1):
+            for cell in row:
+                cell.font = bold_font
+                cell.alignment = center_aligned
+                cell.border = thin_border
+
+        for row in ws_secondary.iter_rows(min_row=1, max_row=1):
+            for cell in row:
+                cell.font = bold_font
+                cell.alignment = center_aligned
+                cell.border = thin_border
+
+        # ----- Fill Candidate Data -----
+        for idx, cand in enumerate(queryset, start=1):
+            primary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="primary")
+            )
+            primary_practical = cand.practical_1 or 0
+            primary_viva = cand.viva_1 or 0
+            primary_total = primary_theory + primary_practical + primary_viva
+            primary_percentage = primary_total
+
+            secondary_theory = sum(
+                a.marks_obt or 0 for a in cand.answer_set.filter(question__exam_type__iexact="secondary")
+            )
+            secondary_practical = cand.practical_2 or 0
+            secondary_viva = cand.viva_2 or 0
+            secondary_total = secondary_theory + secondary_practical + secondary_viva
+            secondary_percentage = secondary_total
+
+            ws_combined.append([
+                idx, cand.center or "", cand.army_no or "", cand.rank or "", cand.trade or "", cand.name or "",
+                primary_theory, primary_practical, primary_viva, primary_total, primary_percentage,
+                secondary_theory, secondary_practical, secondary_viva, secondary_total, secondary_percentage
+            ])
+
+            ws_primary.append([
+                idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
+                cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
+                cand.primary_qualification or "", cand.primary_duration or "",
+                cand.primary_credits or "", cand.nsqf_level or "", cand.training_center or "",
+                cand.district or "", cand.state or "", primary_percentage
+            ])
+
+            ws_secondary.append([
+                idx, cand.name or "", cand.photo or "", cand.fathers_name or "",
+                cand.trade or "", cand.dob or "", cand.army_no or "", cand.adhaar_no or "",
+                cand.secondary_qualification or "", cand.secondary_duration or "",
+                cand.secondary_credits or "", cand.nsqf_level or "", cand.training_center or "",
+                cand.district or "", cand.state or "", secondary_percentage
+            ])
+
+        # Add borders
+        for ws in [ws_combined, ws_primary, ws_secondary]:
+            for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column):
+                for cell in row:
+                    if cell.value is not None:
+                        cell.border = thin_border
+
+        # ✅ Return Excel file
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="results.xlsx"'
+        return response

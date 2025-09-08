@@ -5,9 +5,11 @@ from django.urls import path, include
 from django.views.generic import RedirectView
 
 urlpatterns = [
-    path('', RedirectView.as_view(url='/admin/')),
+    path("", RedirectView.as_view(url="/admin/")),
     path("admin/", admin.site.urls),
-     # ✅ handled in exams/urls.py
+
+    # Include exams app routes (provides the short /admin/exams/export-evaluation/ URL)
+    path("", include("exams.urls")),
 ]
 
 if settings.DEBUG:
