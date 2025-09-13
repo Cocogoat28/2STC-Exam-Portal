@@ -134,3 +134,4 @@ JAZZMIN_SETTINGS = {
     # Keep the section open in sidebar for convenience (optional)
     "navigation_expanded": True,
 }
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 100000

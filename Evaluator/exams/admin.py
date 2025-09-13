@@ -30,9 +30,10 @@ KNOWN_COLS = {
 
 
 def _normalize_header(val: str) -> str:
-    if not val:
+    # robust normalization: accept None and numeric values
+    if val is None:
         return ""
-    key = (val or "").strip().lower().replace(".", "_").replace(" ", "_")
+    key = str(val).strip().lower().replace(".", "_").replace(" ", "_")
     mapping = {
         "s_no": "s_no", "sno": "s_no", "s_no.": "s_no", "s_number": "s_no",
         "fathers_name": "fathers_name", "father_name": "fathers_name",
@@ -64,21 +65,53 @@ def _normalize_header(val: str) -> str:
 
 
 def _read_rows_from_excel(file):
+    """
+    Robust header detection:
+    - scans the top N rows to find a header row which contains the REQUIRED_COLS after normalization.
+    - returns generator of dicts mapping normalized header -> cell value for each data row after the header.
+    """
     wb = load_workbook(file, data_only=True)
     ws = wb.worksheets[0]
 
-    headers = [_normalize_header(c.value) for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=False))]
-    header_index = {h: idx for idx, h in enumerate(headers) if h}
+    # scan first few rows to find header row
+    header_row_index = None
+    max_header_scan = 10
+    for r in range(1, min(max_header_scan, ws.max_row) + 1):
+        # values_only=True returns plain values, so don't access .value
+        row_values = next(ws.iter_rows(min_row=r, max_row=r, values_only=True))
+        headers = [_normalize_header(v) for v in row_values]
+        header_index = {h: idx for idx, h in enumerate(headers) if h}
+        if REQUIRED_COLS.issubset(set(header_index.keys())):
+            header_row_index = r
+            break
 
-    missing = REQUIRED_COLS - set(header_index)
-    if missing:
-        raise ValueError(f"Missing required columns in Excel: {', '.join(missing)}")
+    if header_row_index is None:
+        # fallback: use first row as header (old behavior) but try to produce a useful error
+        # here we want Cell objects so use values_only=False
+        header_cells = next(ws.iter_rows(min_row=1, max_row=1, values_only=False))
+        headers = [_normalize_header(c.value) for c in header_cells]
+        header_index = {h: idx for idx, h in enumerate(headers) if h}
+        missing = REQUIRED_COLS - set(header_index)
+        if missing:
+            raise ValueError(f"Missing required columns in Excel (couldn't auto-detect header row). Missing: {', '.join(missing)}")
+        header_row_index = 1
+    else:
+        # rebuild header_index for chosen header_row_index (we already got values_only row earlier, but re-read as values)
+        header_cells = next(ws.iter_rows(min_row=header_row_index, max_row=header_row_index, values_only=True))
+        headers = [_normalize_header(v) for v in header_cells]
+        header_index = {h: idx for idx, h in enumerate(headers) if h}
 
-    for row in ws.iter_rows(min_row=2, values_only=True):
+    # iterate data rows starting after header_row_index
+    for row in ws.iter_rows(min_row=header_row_index + 1, values_only=True):
         data = {}
         for key, idx in header_index.items():
-            data[key] = row[idx]
+            # guard: row may be shorter than header row
+            try:
+                data[key] = row[idx]
+            except IndexError:
+                data[key] = None
         yield data
+
 
 
 def _get_or_create_question(exam_type, text, correct, max_marks, part=None):
@@ -112,6 +145,7 @@ class AnswerInline(admin.TabularInline):
     extra = 0
 
 
+# (Assume imports and helpers defined earlier remain the same)
 @admin.register(Candidate)
 class CandidateAdmin(admin.ModelAdmin):
     change_list_template = "admin/exams/candidate/change_list.html"
@@ -195,7 +229,13 @@ class CandidateAdmin(admin.ModelAdmin):
         answers = Answer.objects.filter(candidate=cand).select_related("question")
 
         # Auto-marking logic
+        # Auto-marking logic — only for MCQ (A,B) and True/False (F)
         for ans in answers:
+            part = (ans.question.part or '').strip().upper()
+            if part not in ('A', 'B', 'F'):
+                # do not auto-mark free-text answers (C, D, E)
+                continue
+
             cand_ans = (ans.answer or "").strip().lower()
             corr_raw = (ans.question.correct_answer or "").strip().lower()
             if cand_ans and corr_raw:
@@ -211,13 +251,22 @@ class CandidateAdmin(admin.ModelAdmin):
         def group_answers(ans_list):
             def norm(p): return (p or "").strip().upper()
             return {
-                "MCQ": [a for a in ans_list if norm(a.question.part) in ("A", "B", "C")],
+                "MCQ": [a for a in ans_list if norm(a.question.part) in ("A", "B")],
+                "Short Answer": [a for a in ans_list if norm(a.question.part) == "C"],
+                "Fill in Blanks": [a for a in ans_list if norm(a.question.part) == "D"],
                 "True/False": [a for a in ans_list if norm(a.question.part) == "F"],
-                "Short Answer & Fill in Blanks": [a for a in ans_list if norm(a.question.part) == "D"],
                 "Long Answer": [a for a in ans_list if norm(a.question.part) == "E"],
             }
 
+        # ---------------------------
+        # Block POST edits if grades already locked
+        # ---------------------------
         if request.method == "POST":
+            if cand.is_checked:
+                # Candidate already checked: refuse modifications
+                self.message_user(request, "Grades are locked for this candidate — no further edits allowed.", level=messages.WARNING)
+                return redirect('admin:exams_candidate_changelist')
+
             for answer in answers:
                 field_name = f"marks_{answer.id}"
                 if field_name in request.POST:
@@ -226,7 +275,8 @@ class CandidateAdmin(admin.ModelAdmin):
                         # Server-side guard: if no answer for D/E, disallow marks
                         ans_part = (answer.question.part or '').strip().upper()
                         ans_text = (answer.answer or '').strip()
-                        if ans_part in ('D','E') and ans_text == '':
+                        # Prevent awarding marks for blank free-text parts (Short answer, Fill in blanks, Long answer)
+                        if ans_part in ('C', 'D', 'E') and ans_text == '':
                             # ignore any provided marks and clear marks
                             answer.marks_obt = None
                             answer.save()
@@ -271,12 +321,19 @@ class CandidateAdmin(admin.ModelAdmin):
             "secondary_total_obtained": secondary_total_obtained,
             "all_marks_assigned": all_marks_assigned,
             "opts": self.model._meta,
+            # new flag for template (read-only/view-only)
+            "is_locked": cand.is_checked,
         }
         return TemplateResponse(request, "admin/exams/candidate/grade_answers.html", context)
 
     # ---------- Save Grades View ----------
     def save_grades_view(self, request, candidate_id):
         cand = Candidate.objects.get(pk=candidate_id)
+        # If already locked, refuse to make any changes here too
+        if cand.is_checked:
+            self.message_user(request, "Grades are locked for this candidate — no further edits allowed.", level=messages.WARNING)
+            return redirect('admin:exams_candidate_changelist')
+
         if request.method == "POST":
             for ans in Answer.objects.filter(candidate=cand):
                 field_name = f"marks_{ans.id}"
@@ -296,6 +353,8 @@ class CandidateAdmin(admin.ModelAdmin):
             self.message_user(request, "Grades updated", level=messages.SUCCESS)
         return redirect('admin:exams_candidate_changelist')
 
+    # ... the rest of your class (import/export helpers and _generate_excel etc.) remains unchanged ...
+
     # ---------- Import Excel ----------
     def import_excel_view(self, request):
         if request.method == "POST" and request.FILES.get("excel"):
@@ -304,34 +363,42 @@ class CandidateAdmin(admin.ModelAdmin):
             created_answers = updated_answers = 0
             created_questions = 0
 
+            # helper to safely coerce values to strings for string fields
+            def safe_str(v):
+                if v is None:
+                    return ""
+                if isinstance(v, str):
+                    return v.strip()
+                return str(v).strip()
+
             try:
                 with transaction.atomic():
                     seen_questions_before = set(Question.objects.values_list("id", flat=True))
                     for row in _read_rows_from_excel(excel_file):
-                        army = (row.get("army_no") or "").strip()
+                        army = safe_str(row.get("army_no"))
                         if not army:
                             continue
 
                         cand_defaults = {
                             "s_no": row.get("s_no") or 0,
-                            "name": (row.get("name") or "").strip(),
-                            "center": (row.get("center") or "").strip(),
-                            "photo": (row.get("photo") or None),
-                            "fathers_name": (row.get("fathers_name") or "").strip(),
+                            "name": safe_str(row.get("name")),
+                            "center": safe_str(row.get("center")),
+                            "photo": row.get("photo") or None,
+                            "fathers_name": safe_str(row.get("fathers_name")),
                             "dob": row.get("dob") or None,
-                            "rank": (row.get("rank") or "").strip(),
-                            "trade": (row.get("trade") or "").strip().upper(),
-                            "adhaar_no": (row.get("adhaar_no") or "").strip(),
-                            "primary_qualification": (row.get("primary_qualification") or "").strip(),
+                            "rank": safe_str(row.get("rank")),
+                            "trade": safe_str(row.get("trade")).upper(),
+                            "adhaar_no": safe_str(row.get("adhaar_no")),
+                            "primary_qualification": safe_str(row.get("primary_qualification")),
                             "primary_duration": row.get("primary_duration") or 0,
                             "primary_credits": row.get("primary_credits") or 0,
-                            "secondary_qualification": (row.get("secondary_qualification") or "").strip(),
+                            "secondary_qualification": safe_str(row.get("secondary_qualification")),
                             "secondary_duration": row.get("secondary_duration") or 0,
                             "secondary_credits": row.get("secondary_credits") or 0,
                             "nsqf_level": row.get("nsqf_level") or 0,
-                            "training_center": (row.get("training_center") or "").strip(),
-                            "district": (row.get("district") or "").strip(),
-                            "state": (row.get("state") or "").strip(),
+                            "training_center": safe_str(row.get("training_center")),
+                            "district": safe_str(row.get("district")),
+                            "state": safe_str(row.get("state")),
                             "viva_1": row.get("viva_1") or 0,
                             "viva_2": row.get("viva_2") or 0,
                             "practical_1": row.get("practical_1") or 0,
@@ -343,7 +410,8 @@ class CandidateAdmin(admin.ModelAdmin):
                         )
                         if not created:
                             for k, v in cand_defaults.items():
-                                if v and getattr(cand, k) != v:
+                                # update only if provided and different
+                                if v not in (None, "") and getattr(cand, k) != v:
                                     setattr(cand, k, v)
                             cand.save()
                             updated_candidates += 1
@@ -351,8 +419,8 @@ class CandidateAdmin(admin.ModelAdmin):
                             created_candidates += 1
 
                         q = _get_or_create_question(
-                            exam_type=row.get("exam_type") or "",
-                            text=row.get("question") or "",
+                            exam_type=safe_str(row.get("exam_type")),
+                            text=safe_str(row.get("question")),
                             correct=row.get("correct_answer"),
                             max_marks=row.get("max_marks") or 0,
                             part=row.get("part") or None,
@@ -361,21 +429,21 @@ class CandidateAdmin(admin.ModelAdmin):
                             created_questions += 1
                             seen_questions_before.add(q.id)
 
-                        ans_text = (row.get("answer") or "").strip()
-                        marks = row.get("marks_obt") or 0
+                        ans_text = safe_str(row.get("answer"))
+                        marks_raw = row.get("marks_obt")
+                        # defensive int conversion (empty or None => 0)
+                        try:
+                            marks = int(marks_raw) if marks_raw not in (None, "") else 0
+                        except (ValueError, TypeError):
+                            marks = 0
 
-                        ans, a_created = Answer.objects.get_or_create(
-                            candidate=cand, question=q,
-                            defaults={"answer": ans_text, "marks_obt": int(marks)},
-                        )
-                        if a_created:
-                            created_answers += 1
-                        else:
-                            if ans.answer != ans_text or ans.marks_obt != int(marks):
-                                ans.answer = ans_text
-                                ans.marks_obt = int(marks)
-                                ans.save()
-                                updated_answers += 1
+                        # ----------------------------
+                        # IMPORTANT FIX: create answer INSIDE the loop for each row
+                        # ----------------------------
+                        # Always create a new Answer row to preserve duplicates from Excel.
+                        # Ensure your Answer model does not have a unique constraint on (candidate, question)
+                        ans = Answer.objects.create(candidate=cand, question=q, answer=ans_text, marks_obt=int(marks))
+                        created_answers += 1
 
                 self.message_user(
                     request,
@@ -407,6 +475,10 @@ class CandidateAdmin(admin.ModelAdmin):
         """
         queryset = Candidate.objects.all()
         return self._generate_excel(queryset)
+
+    # ... rest of your class unchanged ...
+    # (I intentionally left the remaining methods exactly as you had them)
+
 
     # ---------- NEW action: Export selected queryset as 3-in-1 ----------
     def export_selected_results(self, request, queryset):
@@ -560,7 +632,8 @@ class CandidateAdmin(admin.ModelAdmin):
                         checked_at = str(cand.checked_at)
 
                 ws.append([
-                    idx, cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
+                    idx,
+                    cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
                     cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or "", cand.adhaar_no or "",
                     cand.primary_qualification or "", cand.primary_duration or "", cand.primary_credits or "",
                     cand.secondary_qualification or "", cand.secondary_duration or "", cand.secondary_credits or "",
@@ -596,8 +669,9 @@ class CandidateAdmin(admin.ModelAdmin):
                             checked_at = str(cand.checked_at)
 
                     ws.append([
-                        idx, cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
-                        cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or ", cand.adhaar_no or ",
+                        idx,
+                        cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
+                        cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or "", cand.adhaar_no or "",
                         cand.primary_qualification or "", cand.primary_duration or "", cand.primary_credits or "",
                         cand.secondary_qualification or "", cand.secondary_duration or "", cand.secondary_credits or "",
                         cand.nsqf_level or "", cand.training_center or "", cand.district or "", cand.state or "",
@@ -773,8 +847,9 @@ class CandidateAdmin(admin.ModelAdmin):
                         checked_at = str(cand.checked_at)
 
                 ws.append([
-                    idx, cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
-                    cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or ", cand.adhaar_no or ",
+                    idx,
+                    cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
+                    cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or "", cand.adhaar_no or "",
                     cand.primary_qualification or "", cand.primary_duration or "", cand.primary_credits or "",
                     cand.secondary_qualification or "", cand.secondary_duration or "", cand.secondary_credits or "",
                     cand.nsqf_level or "", cand.training_center or "", cand.district or "", cand.state or "",
@@ -809,11 +884,12 @@ class CandidateAdmin(admin.ModelAdmin):
                             checked_at = str(cand.checked_at)
 
                     ws.append([
-                        idx, cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
-                        cand.fathers_name or "", cand.dob or "", cand.rank or ", cand.trade or ", cand.adhaar_no or "",
-                        cand.primary_qualification or "", cand.primary_duration or ", cand.primary_credits or ",
-                        cand.secondary_qualification or "", cand.secondary_duration or ", cand.secondary_credits or ",
-                        cand.nsqf_level or "", cand.training_center or ", cand.district or ", cand.state or "",
+                        idx,
+                        cand.army_no or "", cand.name or "", cand.center or "", cand.photo or "",
+                        cand.fathers_name or "", cand.dob or "", cand.rank or "", cand.trade or "", cand.adhaar_no or "",
+                        cand.primary_qualification or "", cand.primary_duration or "", cand.primary_credits or "",
+                        cand.secondary_qualification or "", cand.secondary_duration or "", cand.secondary_credits or "",
+                        cand.nsqf_level or "", cand.training_center or "", cand.district or "", cand.state or "",
                         question_exam_type, question_part, question_text,
                         correct_answer, max_marks, candidate_answer, marks_awarded,
                         primary_total, secondary_total, grand_total,

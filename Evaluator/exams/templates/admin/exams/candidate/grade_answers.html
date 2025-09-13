@@ -61,137 +61,196 @@
   padding: 0;
 }
 
+/* ---------- NEW: Automatic column sizing for Short/Long Answer tables ---------- */
+/*
+  .auto-calc-cols lets the browser size columns by content (table-layout: auto)
+  but provides sensible min/max constraints so columns don't become absurdly
+  wide or tiny. This only applies to tables that have the class "auto-calc-cols".
+*/
+#content-main .grade-table.auto-calc-cols {
+  table-layout: auto; /* ensure automatic sizing based on content */
+}
 
+/* Let column widths be determined by content, but constrain extremes */
+#content-main .grade-table.auto-calc-cols th:nth-child(1),
+#content-main .grade-table.auto-calc-cols td:nth-child(1) {
+  /* Question column: allow it to grow with long questions but keep a minimum */
+  min-width: 180px;
+  max-width: 45%;
+  width: auto;
+  padding-left: 10px;
+  padding-right: 10px;
+}
 
-    .marks-input {
-      width: 60px;
-      text-align: center;
-      padding: 4px;
-      border: 1px solid #ccc;
-      border-radius: 3px;
-      background-color: white;
-    }
-    .marks-input:focus {
-      outline: none;
-      border-color: #007bff;
-      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-    }
-    .marks-input.has-marks {
-      color: black;
-      background-color: #29ce4f; /* ✅ green */
-      border-color: #09cd36;
-    }
-    .marks-input.checked {
-      color: black;
-      background-color: #29ce4f; /* ✅ green */
-      border-color: #09cd36;
-    }
-    .marks-input.not-graded {
-      color: black;
-      background-color: #ffcccc; /* ❌ red */
-      border-color: #ff0000;
-    }
-    .auto-evaluated {
-      background-color: #d4edda !important;
-    }
+#content-main .grade-table.auto-calc-cols th:nth-child(2),
+#content-main .grade-table.auto-calc-cols td:nth-child(2) {
+  /* Candidate's Answer column: prefer it to take natural content width, but cap */
+  min-width: 200px;
+  max-width: 55%;
+  width: auto;
+  padding-left: 12px;
+  padding-right: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
 
-    /* Summary Cards */
-    .summary-container {
-        display: flex;
-        gap: 20px;
-        flex-wrap: wrap;
-        margin-bottom: 20px;
-    }
-    .summary-card {
-        flex: 1;
-        min-width: 250px;
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
-        padding: 15px;
-    }
-    .summary-stats {
-        display: flex;
-        gap: 20px;
-        flex-wrap: nowrap;
-        margin-bottom: 10px;
-    }
-    .summary-stat {
-        background: white;
-        padding: 10px 15px;
-        border-radius: 5px;
-        border: 1px solid #dee2e6;
-        min-width: 80px;
-        flex-grow: 1;
-        text-align: center;
-    }
-    .summary-stat strong {
-        display: block;
-        margin-bottom: 5px;
-        color: #495057;
-    }
-    .summary-highlight {
-        background-color: #e7f3ff;
-        font-weight: bold;
-    }
+#content-main .grade-table.auto-calc-cols th:nth-child(3),
+#content-main .grade-table.auto-calc-cols td:nth-child(3) {
+  /* Correct Answer column: allow it to size with content but not shrink too small */
+  min-width: 200px;
+  max-width: 60%;
+  width: auto;
+  padding-left: 10px;
+  padding-right: 10px;
+}
 
-    .summary-container .summary-card:last-child {
-        flex-grow: 0;
-        flex-shrink: 1;
-        min-width: 250px;
-    }
+/* Ensure numeric columns stay compact in these auto-sized tables */
+#content-main .grade-table.auto-calc-cols th:nth-last-child(-n+2),
+#content-main .grade-table.auto-calc-cols td:nth-last-child(-n+2) {
+  width: 1%;
+  white-space: nowrap;
+}
 
-    .section-header {
-      border-bottom: 2px solid #007bff;
-      padding-bottom: 10px;
-      margin-top: 30px;
-      margin-bottom: 15px;
-      color: #343a40;
-    }
+/* Small screens: keep tables scrollable rather than squashing */
+@media (max-width: 900px) {
+  /* for auto-calc tables allow horizontal scroll if needed */
+  #content-main .grade-table.auto-calc-cols { display: block; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #content-main .grade-table.auto-calc-cols th, #content-main .grade-table.auto-calc-cols td { box-sizing: border-box; }
+  .cand-ans, .corr-ans { max-height: 14rem; }
+}
 
-    .submit-row {
-      margin-top: 30px;
-      padding: 15px;
-      background: #f8f9fa;
-      border: 1px solid #dee2e6;
-      border-radius: 4px;
-      text-align: right;
-    }
-    .submit-row .button {
-      padding: 10px 15px;
-      background: #000000;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-      margin-left: 10px;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-    .submit-row .default {
-      background: #e81212;
-    }
-    .submit-row .button:hover {
-      opacity: 0.9;
-    }
-    .submit-row .button:disabled {
-      background: #aaa;
-      cursor: not-allowed;
-    }
+/* marks input visuals (unchanged) */
+.marks-input {
+  width: 60px;
+  text-align: center;
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background-color: white;
+}
+.marks-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+.marks-input.has-marks {
+  color: black;
+  background-color: #29ce4f; /* ✅ green */
+  border-color: #09cd36;
+}
+.marks-input.checked {
+  color: black;
+  background-color: #29ce4f; /* ✅ green */
+  border-color: #09cd36;
+}
+.marks-input.not-graded {
+  color: black;
+  background-color: #ffcccc; /* ❌ red */
+  border-color: #ff0000;
+}
+.auto-evaluated {
+  background-color: #d4edda !important;
+}
 
-    .total-row {
-      background-color: #e9ecef;
-      font-weight: bold;
-    }
+/* Summary Cards */
+.summary-container {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+.summary-card {
+    flex: 1;
+    min-width: 250px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 15px;
+}
+.summary-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: nowrap;
+    margin-bottom: 10px;
+}
+.summary-stat {
+    background: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+    min-width: 80px;
+    flex-grow: 1;
+    text-align: center;
+}
+.summary-stat strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #495057;
+}
+.summary-highlight {
+    background-color: #e7f3ff;
+    font-weight: bold;
+}
 
-    /* ➕ small-screen polish */
-    @media (max-width: 768px) {
-      .cand-ans, .corr-ans { max-height: 10rem; }
-      .summary-stats { flex-wrap: wrap; }
-      .summary-stat { min-width: 120px; }
-    }
+.summary-container .summary-card:last-child {
+    flex-grow: 0;
+    flex-shrink: 1;
+    min-width: 250px;
+}
+
+.section-header {
+  border-bottom: 2px solid #007bff;
+  padding-bottom: 10px;
+  margin-top: 30px;
+  margin-bottom: 15px;
+  color: #343a40;
+}
+
+.submit-row {
+  margin-top: 30px;
+  padding: 15px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  text-align: right;
+}
+.submit-row .button {
+  padding: 10px 15px;
+  background: #000000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.submit-row .default {
+  background: #e81212;
+}
+.submit-row .button:hover {
+  opacity: 0.9;
+}
+.submit-row .button:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+.total-row {
+  background-color: #e9ecef;
+  font-weight: bold;
+}
+
+/* ➕ small-screen polish */
+@media (max-width: 768px) {
+  .cand-ans, .corr-ans { max-height: 10rem; }
+  .summary-stats { flex-wrap: wrap; }
+  .summary-stat { min-width: 120px; }
+}
   </style>
 {% endblock %}
 
@@ -236,8 +295,7 @@
     </div>
   </div>
 
-  
-  <form method="post" id="grading-form">
+  <form method="post" id="grading-form" data-locked="{% if candidate.is_checked %}1{% else %}0{% endif %}">
     {% csrf_token %}
     
     {# Primary Questions #}
@@ -247,7 +305,8 @@
         {% if group %}
         <h3>{{ label }}</h3>
           
-        <table class="grade-table">
+        {# Add auto-calc-cols only for Short Answer / Long Answer (keeps other tables unchanged) #}
+        <table class="grade-table{% if label == 'Short Answer' or label == 'Long Answer' %} auto-calc-cols{% endif %}">
           <thead>
             <tr><th>Question</th><th>Candidate's Answer</th><th>Correct Answer</th><th>Max Marks</th><th>Marks Obtained</th></tr>
           </thead>
@@ -262,7 +321,8 @@
                 <input type="number" name="marks_{{ answer.id }}"
                   value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% else %}0{% endif %}"
                   min="0" max="{{ answer.question.max_marks }}"
-                  class="marks-input" data-max-marks="{{ answer.question.max_marks }}">
+                  class="marks-input" data-max-marks="{{ answer.question.max_marks }}"
+                  {% if candidate.is_checked %}disabled aria-disabled="true"{% endif %}>
               </td>
             </tr>
             {% endfor %}
@@ -278,7 +338,7 @@
       {% for label, group in secondary_groups.items %}
         {% if group %}
         <h3>{{ label }}</h3>
-        <table class="grade-table">
+        <table class="grade-table{% if label == 'Short Answer' or label == 'Long Answer' %} auto-calc-cols{% endif %}">
           <thead>
             <tr><th>Question</th><th>Candidate's Answer</th><th>Correct Answer</th><th>Max Marks</th><th>Marks Obtained</th></tr>
           </thead>
@@ -293,7 +353,8 @@
                 <input type="number" name="marks_{{ answer.id }}"
                   value="{% if answer.marks_obt is not None %}{{ answer.marks_obt }}{% else %}0{% endif %}"
                   min="0" max="{{ answer.question.max_marks }}"
-                  class="marks-input" data-max-marks="{{ answer.question.max_marks }}">
+                  class="marks-input" data-max-marks="{{ answer.question.max_marks }}"
+                  {% if candidate.is_checked %}disabled aria-disabled="true"{% endif %}>
               </td>
             </tr>
             {% endfor %}
@@ -304,8 +365,13 @@
     {% endif %}
 
     <div class="submit-row">
-      <input type="submit" value="Save Grades" class="button default" id="submit-button">
-      <a href="{% url 'admin:exams_candidate_change' candidate.id %}" class="button">Back to Candidate</a>
+      {% if candidate.is_checked %}
+        <span style="color:#666; margin-right: 20px;">Grades locked — candidate already checked</span>
+        <a href="{% url 'admin:exams_candidate_change' candidate.id %}" class="button">Back to Candidate</a>
+      {% else %}
+        <input type="submit" value="Save Grades" class="button default" id="submit-button">
+        <a href="{% url 'admin:exams_candidate_change' candidate.id %}" class="button">Back to Candidate</a>
+      {% endif %}
     </div>
   </form>
 </div>
@@ -313,7 +379,17 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('grading-form');
+  const isLocked = form.getAttribute('data-locked') === "1";
   const marksInputs = form.querySelectorAll('.marks-input');
+
+  if (isLocked) {
+    // Already locked: ensure no client-side auto-change and mark visually
+    marksInputs.forEach(i => {
+      i.classList.add('checked');
+      i.classList.add('has-marks');
+    });
+    return; // don't run auto-eval or interactive handlers
+  }
 
   function updateInputStyle(input, isInitial=false) {
     if (input.classList.contains('checked')) return; // skip auto MCQ/TF
@@ -330,7 +406,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Auto-assign MCQ/TF (unchanged)
+  // Auto-assign MCQ/TF
   document.querySelectorAll('table.grade-table').forEach((table) => {
     const rows = table.querySelectorAll('tbody tr');
     const sectionLabel = table.previousElementSibling?.textContent?.trim().toLowerCase();
@@ -342,7 +418,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (candAnsElem && corrAnsElem && input && maxMarksElem) {
         const candAns = candAnsElem.textContent.trim().toLowerCase();
         const corrAns = corrAnsElem.textContent.trim().toLowerCase();
-        const maxMarks = parseInt(maxMarksElem.textContent);
+        const maxMarks = parseInt(maxMarksElem.textContent) || 0;
         if (sectionLabel.includes("mcq") || sectionLabel.includes("true/false")) {
           if (candAns && corrAns && candAns === corrAns) {
             input.value = maxMarks;
@@ -357,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Apply styles on load and changes (unchanged)
+  // Apply styles on load and changes
   marksInputs.forEach(input => {
     if (input.value.trim() === "" || input.value === "None" || input.value === "null") {
       input.value = "0";
@@ -366,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     input.addEventListener('input', function() {
       if (!this.classList.contains('checked')) {
-        const maxMarks = parseInt(this.getAttribute('data-max-marks'));
+        const maxMarks = parseInt(this.getAttribute('data-max-marks')) || 0;
         let numericValue = parseInt(this.value.trim());
         if (isNaN(numericValue) || numericValue < 0) {
           this.value = 0;
