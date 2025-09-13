@@ -14,7 +14,6 @@ from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbid
 from django.urls import reverse, path
 from django.utils import timezone
 from django.utils.html import format_html
-
 import openpyxl
 from openpyxl.utils import get_column_letter
 
@@ -156,7 +155,7 @@ def export_candidates_excel(modeladmin, request, queryset):
             candidate.name,
             candidate.photograph.url if candidate.photograph else "",
             getattr(candidate.trade, "name", str(candidate.trade)) if candidate.trade else "",
-            candidate.dob.strftime("%Y-%m-%d") if candidate.dob else "",
+            candidate.dob,
             candidate.father_name,
             candidate.doe.strftime("%Y-%m-%d") if candidate.doe else "",
             candidate.aadhar_number,
@@ -198,6 +197,11 @@ def _build_export_workbook(queryset):
     from openpyxl import Workbook
     from io import BytesIO
 
+    # local imports to avoid circular import at module level
+    from questions.models import QuestionPaper
+    from results.models import CandidateAnswer
+    from questions.models import ExamSession
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Results"
@@ -237,20 +241,80 @@ def _build_export_workbook(queryset):
     ]
 
     ws.append(headers)
+    serial = 1
 
     for candidate in queryset:
-        papers = QuestionPaper.objects.filter(candidateanswer__candidate=candidate).distinct()
+        # For each candidate, find their exam sessions (these contain the assigned questions)
+        sessions = (
+            ExamSession.objects
+            .filter(user=candidate.user)
+            .select_related("paper")
+            .prefetch_related("examquestion_set__question")
+            .order_by("-started_at")
+        )
 
-        for paper in papers:
-            questions = paper.questions.all().order_by("id")
+        # If candidate has no sessions, optionally fallback to candidate_answers to include any orphan answers
+        if not sessions.exists():
+            # Optional: include papers where candidate actually has answers (helps if sessions were deleted)
+            # We'll iterate papers that have CandidateAnswer rows for this candidate.
+            papers_with_answers = QuestionPaper.objects.filter(candidate_answers__candidate=candidate).distinct()
+            for paper in papers_with_answers:
+                questions = paper.questions.all().order_by("id")
+                for q in questions:
+                    ans = CandidateAnswer.objects.filter(candidate=candidate, paper=paper, question=q).first()
+                    row = [
+                        serial,
+                        candidate.name,
+                        candidate.exam_center,
+                        candidate.photograph.url if candidate.photograph else "",
+                        candidate.father_name,
+                        candidate.dob,
+                        candidate.rank,
+                        candidate.trade.name if candidate.trade else "",
+                        candidate.army_no,
+                        candidate.aadhar_number,
+                        candidate.primary_qualification,
+                        candidate.primary_duration,
+                        candidate.primary_credits,
+                        candidate.secondary_qualification,
+                        candidate.secondary_duration,
+                        candidate.secondary_credits,
+                        candidate.nsqf_level,
+                        candidate.training_center,
+                        candidate.district,
+                        candidate.state,
+                        candidate.primary_viva_marks,
+                        candidate.secondary_viva_marks,
+                        candidate.primary_practical_marks,
+                        candidate.secondary_practical_marks,
+                        candidate.army_no,
+                        "Secondary" if getattr(paper, "is_common", False) else "Primary",
+                        q.part,
+                        q.text,
+                        ans.answer if ans and ans.answer is not None else "N/A",
+                        getattr(q, "correct_answer", None),
+                        q.marks if hasattr(q, "marks") else None,
+                    ]
+                    ws.append(row)
+                    serial += 1
+            continue
 
-            for q in questions:
-                ans = CandidateAnswer.objects.filter(
-                    candidate=candidate, paper=paper, question=q
-                ).first()
+        # Otherwise iterate sessions and the ExamQuestions (assigned questions)
+        for session in sessions:
+            paper = session.paper  # may be None if paper row deleted; handle gracefully
+            exam_questions = session.questions  # property returns ordered ExamQuestion queryset
+
+            for eq in exam_questions:
+                q = eq.question
+                # Try to fetch CandidateAnswer by candidate + paper + question.
+                # If paper is None (deleted paper), search for any CandidateAnswer matching candidate+question.
+                if paper is not None:
+                    ans = CandidateAnswer.objects.filter(candidate=candidate, paper=paper, question=q).first()
+                else:
+                    ans = CandidateAnswer.objects.filter(candidate=candidate, question=q).first()
 
                 row = [
-                    None,  # S.No
+                    serial,
                     candidate.name,
                     candidate.exam_center,
                     candidate.photograph.url if candidate.photograph else "",
@@ -275,19 +339,20 @@ def _build_export_workbook(queryset):
                     candidate.primary_practical_marks,
                     candidate.secondary_practical_marks,
                     candidate.army_no,
-                    "Secondary" if paper.is_common else "Primary",
+                    "Secondary" if (paper and getattr(paper, "is_common", False)) else ("Primary" if paper else "Unknown"),
                     q.part,
                     q.text,
-                    ans.answer if ans else None,
+                    ans.answer if ans and ans.answer is not None else "N/A",
                     getattr(q, "correct_answer", None),
                     q.marks if hasattr(q, "marks") else None,
                 ]
                 ws.append(row)
+                serial += 1
 
     stream = BytesIO()
     wb.save(stream)
+    stream.seek(0)
     return stream.getvalue()
-
 
 # -------------------------
 # Crypto helper: encrypt bytes → .dat (salt + iv + ciphertext)

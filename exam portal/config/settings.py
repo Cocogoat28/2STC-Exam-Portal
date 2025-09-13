@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     "import_export",
     "django_filters",
     "accounts",
-    "reference.apps.ReferenceConfig",
+    "reference",
     "centers",
     "registration",
     "questions.apps.QuestionsConfig",
@@ -87,12 +87,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'exam_portal',
-        'USER': 'root',
-        'PASSWORD': 'root',
-        'HOST': 'localhost',   # or '127.0.0.1' or remote host
-        'PORT': '3306',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -252,4 +248,4 @@ JAZZMIN_UI_TWEAKS = {
 # settings.py
 CONVERTER_PASSPHRASE = os.environ.get("CONVERTER_PASSPHRASE", "bharat")
 
-    
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 100000 

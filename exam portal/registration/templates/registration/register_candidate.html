@@ -208,17 +208,22 @@
       #captureBtn { display: inline-block; }
     }
 
+    input.invalid, select.invalid {
+      border-color: red !important;
+      box-shadow: 0 0 6px red;
+    }
+    .field-error {
+      color: red;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="title">ARMY CANDIDATE REGISTRATION</div>
     <div class="subtitle">2 Signal Training Centre Online Exam Portal</div>
-    {% if form.errors %}
-    <div style="margin:10px 0; background:rgba(120,20,20,.85); color:#fff; border-radius:8px; padding:10px 14px;">
-      Please fix the errors and try again.
-    </div>
-  {% endif %}
 
     <!-- Stepper -->
     <div class="stepper" id="stepper">
@@ -239,33 +244,35 @@
       <section class="form-step active" data-step="2">
         <h2>Personal Details</h2>
         <div class="grid">
-          <div><label>Army No (USERNAME) *</label><input type="text" name="army_no" required /></div>
-          <div><label>Date of Birth (PASSWORD dd-mm-yyyy) *</label><input type="text" name="dob" required /></div>
+          <div><label>Army No (USERNAME) *</label><input type="text" name="army_no" required {% if form.army_no.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-army_no">{% for error in form.army_no.errors %}{{ error }}<br>{% endfor %}</div></div>
+          <div><label>Date of Birth (PASSWORD dd-mm-yyyy) *</label><input type="text" name="dob" required {% if form.dob.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-dob">{% for error in form.dob.errors %}{{ error }}<br>{% endfor %}</div></div>
           <div>
             <label for="rank">Rank *</label>
-            <select name="rank" id="rank" required>
+            <select name="rank" id="rank" required {% if form.rank.errors %}class="invalid"{% endif %}>
               <option value="">-- Select Rank --</option>
               <option value="AGV">AGV</option>
             </select>
+            <div class="field-error" id="error-rank">{% for error in form.rank.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
-          <div><label>Unit *</label><input type="text" name="unit" required /></div>
-          <div><label>Brigade</label><input type="text" name="brigade" /></div>
-          <div><label>Corps</label><input type="text" name="corps" /></div>
-          <div><label>Command</label><input type="text" name="command" /></div>
+          <div><label>Unit *</label><input type="text" name="unit" required {% if form.unit.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-unit">{% for error in form.unit.errors %}{{ error }}<br>{% endfor %}</div></div>
+          <div><label>Brigade</label><input type="text" name="brigade" {% if form.brigade.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-brigade">{% for error in form.brigade.errors %}{{ error }}<br>{% endfor %}</div></div>
+          <div><label>Corps</label><input type="text" name="corps" {% if form.corps.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-corps">{% for error in form.corps.errors %}{{ error }}<br>{% endfor %}</div></div>
+          <div><label>Command</label><input type="text" name="command" {% if form.command.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-command">{% for error in form.command.errors %}{{ error }}<br>{% endfor %}</div></div>
 
           <div>
             <label>Trade *</label>
-            <select name="trade" id="trade" class="form-control" required>
+            <select name="trade" id="trade" class="form-control" required {% if form.trade.errors %}class="invalid"{% endif %}>
               <option value="">-- Select Trade --</option>
               {% for trade in form.fields.trade.queryset %}
                 <option value="{{ trade.id }}" data-code="{{ trade.code }}">{{ trade.code }}</option>
               {% endfor %}
             </select>
+            <div class="field-error" id="error-trade">{% for error in form.trade.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
-          <div><label>Name *</label><input type="text" name="name" required /></div>
-          <div><label>Date of Enrollment *</label><input type="date" name="doe" required /></div>
-          <div><label>Aadhar No *</label><input type="text" name="aadhar_number" pattern="[0-9]{12}" maxlength="12" required /></div>
-          <div><label>Father's Name *</label><input type="text" name="father_name" required /></div>
+          <div><label>Name *</label><input type="text" name="name" required {% if form.name.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-name">{% for error in form.name.errors %}{{ error }}<br>{% endfor %}</div></div>
+          <div><label>Date of Enrollment *</label><input type="date" name="doe" required {% if form.doe.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-doe">{% for error in form.doe.errors %}{{ error }}<br>{% endfor %}</div></div>
+          <div><label>Aadhar No(12 digit) *</label><input type="text" name="aadhar_number" pattern="[0-9]{12}" maxlength="12" required {% if form.aadhar_number.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-aadhar_number">{% for error in form.aadhar_number.errors %}{{ error }}<br>{% endfor %}</div></div>
+          <div><label>Father's Name *</label><input type="text" name="father_name" required {% if form.father_name.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-father_name">{% for error in form.father_name.errors %}{{ error }}<br>{% endfor %}</div></div>
 
           <!-- ---------- PHOTO AREA: Replace original block with this ---------- -->
           <div class="grid-1" style="grid-column:1/-1;">
@@ -274,7 +281,7 @@
             <div class="photo-row">
               <!-- Left: upload + preview -->
               <div class="photo-col">
-                <input type="file" name="photograph" id="fileInput" accept="image/*" required>
+                <input type="file" name="photograph" id="fileInput" accept="image/*" required {% if form.photograph.errors %}class="invalid"{% endif %}>
                 <small style="color:#aaa;">Upload a photo from your device</small>
                 {% comment %} <p style="margin:8px 0; text-align:center; color:#bbb; font-weight:bold;">OR</p> {% endcomment %}
                 <!-- preview canvas -->
@@ -288,6 +295,7 @@
                 <button type="button" id="captureBtn">📸 Capture</button>
               </div>
             </div>
+            <div class="field-error" id="error-photograph">{% for error in form.photograph.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
 
         </div>
@@ -308,15 +316,18 @@
           </div>
           <div>
             <label>Primary Qualification *</label>
-            <input type="text" id="primary_qualification" name="primary_qualification" readonly required />
+            <input type="text" id="primary_qualification" name="primary_qualification" readonly required {% if form.primary_qualification.errors %}class="invalid"{% endif %} />
+            <div class="field-error" id="error-primary_qualification">{% for error in form.primary_qualification.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
           <div>
             <label>Duration</label>
-            <input type="text" id="primary_duration" name="primary_duration" readonly />
+            <input type="text" id="primary_duration" name="primary_duration" readonly {% if form.primary_duration.errors %}class="invalid"{% endif %} />
+            <div class="field-error" id="error-primary_duration">{% for error in form.primary_duration.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
           <div>
             <label>Credits</label>
-            <input type="text" id="primary_credits" name="primary_credits" readonly />
+            <input type="text" id="primary_credits" name="primary_credits" readonly {% if form.primary_credits.errors %}class="invalid"{% endif %} />
+            <div class="field-error" id="error-primary_credits">{% for error in form.primary_credits.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
 
           <div class="grid-1" style="grid-column:1/-1;margin-top:20px;">
@@ -324,20 +335,23 @@
           </div>
           <div>
             <label>Secondary Qualification *</label>
-            <input type="text" id="secondary_qualification" name="secondary_qualification" readonly required />
+            <input type="text" id="secondary_qualification" name="secondary_qualification" readonly required {% if form.secondary_qualification.errors %}class="invalid"{% endif %} />
+            <div class="field-error" id="error-secondary_qualification">{% for error in form.secondary_qualification.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
           <div>
             <label>Duration</label>
-            <input type="text" id="secondary_duration" name="secondary_duration" readonly />
+            <input type="text" id="secondary_duration" name="secondary_duration" readonly {% if form.secondary_duration.errors %}class="invalid"{% endif %} />
+            <div class="field-error" id="error-secondary_duration">{% for error in form.secondary_duration.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
           <div>
             <label>Credits</label>
-            <input type="text" id="secondary_credits" name="secondary_credits" readonly />
+            <input type="text" id="secondary_credits" name="secondary_credits" readonly {% if form.secondary_credits.errors %}class="invalid"{% endif %} />
+            <div class="field-error" id="error-secondary_credits">{% for error in form.secondary_credits.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
 
           <div class="grid-1" style="grid-column:1/-1">
             <label>Exam Center *</label>
-            <select name="exam_center" required>
+            <select name="exam_center" required {% if form.exam_center.errors %}class="invalid"{% endif %}>
               <option value="">-- Select Exam Center --</option>
               <option>SWC-Jaipur</option><option>SWC-Hissar</option><option>SWC-Bathinda</option>
               <option>SWC-Sriganganagar</option><option>SWC-Bikaner</option><option>SWC-Suratgarh</option>
@@ -363,21 +377,24 @@
               <option>NC-Nagrota</option><option>NC-Palampur</option><option>NC-Mathura</option>
               <option>NC-Karu</option>
             </select>
+            <div class="field-error" id="error-exam_center">{% for error in form.exam_center.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
           <div>
             <label>NSQF Level</label>
-            <input type="text" name="nsqf_level" value="4.5" readonly />
+            <input type="text" name="nsqf_level" value="4.5" readonly {% if form.nsqf_level.errors %}class="invalid"{% endif %} />
+            <div class="field-error" id="error-nsqf_level">{% for error in form.nsqf_level.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
           <div>
             <label>Training Center *</label>
-            <select id="training_center" name="training_center" required>
+            <select id="training_center" name="training_center" required {% if form.training_center.errors %}class="invalid"{% endif %}>
               <option value="">-- Select Training Center --</option>
               <option value="1 Signal Training Center">1 Signal Training Center</option>
               <option value="2 Signal Training Center">2 Signal Training Center</option>
             </select>
+            <div class="field-error" id="error-training_center">{% for error in form.training_center.errors %}{{ error }}<br>{% endfor %}</div>
           </div>
-          <div><label>State *</label><input type="text" id="state" name="state" readonly required /></div>
-          <div><label>District *</label><input type="text" id="district" name="district" readonly required /></div>
+          <div><label>State *</label><input type="text" id="state" name="state" readonly required {% if form.state.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-state">{% for error in form.state.errors %}{{ error }}<br>{% endfor %}</div></div>
+          <div><label>District *</label><input type="text" id="district" name="district" readonly required {% if form.district.errors %}class="invalid"{% endif %} /><div class="field-error" id="error-district">{% for error in form.district.errors %}{{ error }}<br>{% endfor %}</div></div>
         </div>
 
         <div class="actions">
@@ -414,10 +431,10 @@
     "CHEFCOM": { primary:{qualification:"Commis Chef (Advanced)",duration:"1200",credits:"40"}, secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} },
     "MESS KEEPER": { primary:{qualification:"Camp Coordinator",duration:"1350",credits:"45"}, secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} },
     "SKT": { primary:{qualification:"Store Keeper Technician",duration:"1350",credits:"45"}, secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} },
-    "MUSICIAN": { primary:{qualification:"Music Performer",duration:"1200",credits:"40"}, secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} },
+    "Musician": { primary:{qualification:"Music Performer",duration:"1200",credits:"40"}, secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} },
     "ARTSN WW": { primary:{qualification:"Technician Wood Works",duration:"1350",credits:"45"}, secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} },
-    "HAIR DRESSER": { primary:{qualification:"N/A",duration:"N/A",credits:"N/A"},secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} },
-    "SP STAFF": { primary:{qualification:"N/A",duration:"N/A",credits:"N/A"}, secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} }
+    "Hair Dresser": { primary:{qualification:"N/A",duration:"N/A",credits:"N/A"},secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} },
+    "SP Staff": { primary:{qualification:"N/A",duration:"N/A",credits:"N/A"}, secondary:{qualification:"Security Guard (Armed)",duration:"1350",credits:"45"} }
   };
 
   // ===== Get all elements =====
@@ -475,6 +492,11 @@
     } else {
       secondaryQ.value = secondaryD.value = secondaryC.value = "";
     }
+
+    // Validate the readonly fields after updating
+    [primaryQ, primaryD, primaryC, secondaryQ, secondaryD, secondaryC].forEach(el => {
+      if (el) validateField(el);
+    });
 
     // Update buttons after trade mapping to ensure validation runs properly
     setTimeout(updateButtons, 100);
@@ -617,19 +639,70 @@
   syncCreds(); // initial
 
   // ===== Validation function =====
+  function validateField(el) {
+    const errorEl = document.getElementById(`error-${el.name}`);
+    let message = '';
+
+    if (el.required) {
+      if (el.type === 'file') {
+        if (!el.files || el.files.length === 0) {
+          message = 'This field is required.';
+        }
+      } else if (el.tagName === 'SELECT') {
+        if (!el.value) {
+          message = 'Please select an option.';
+        }
+      } else {
+        if (!el.value.trim()) {
+          message = 'This field is required.';
+        }
+      }
+    }
+
+    // Extra validations
+    if (el.name === 'aadhar_number') {
+      const val = el.value.trim();
+      if (val && !/^\d{12}$/.test(val)) {
+        message = 'Must be exactly 12 digits.';
+      }
+    }
+
+    if (el.name === 'doe') {
+      const val = el.value;
+      if (val) {
+        const selectedDate = new Date(val);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (selectedDate >= today) {
+          message = 'Date must be before today.';
+        }
+      }
+    }
+
+    if (el.name === 'dob') {
+      const val = el.value.trim();
+      if (val && !/^\d{2}-\d{2}-\d{4}$/.test(val)) {
+        message = 'Format: dd-mm-yyyy';
+      }
+    }
+
+    if (message) {
+      el.classList.add('invalid');
+      if (errorEl) errorEl.textContent = message;
+    } else {
+      el.classList.remove('invalid');
+      if (errorEl) errorEl.textContent = '';
+    }
+
+    return !message;
+  }
+
+  // ===== Section validation =====
   function isSectionValid(section) {
     let isValid = true;
 
     section.querySelectorAll('input, select, textarea').forEach(el => {
-      if (el.required) {
-        if (el.type === 'file') {
-          if (!el.files || el.files.length === 0) {
-            isValid = false;
-          }
-        } else if (!el.checkValidity() || !String(el.value).trim()) {
-          isValid = false;
-        }
-      }
+      isValid &= validateField(el);
     });
 
     return isValid;
@@ -677,10 +750,16 @@
 
   // ===== Live validation =====
   document.querySelectorAll('.form-step input, .form-step select, .form-step textarea')
-    .forEach(el => el.addEventListener('input', () => setTimeout(updateButtons, 50)));
+    .forEach(el => el.addEventListener('input', () => {
+      validateField(el);
+      setTimeout(updateButtons, 50);
+    }));
 
   document.querySelectorAll('.form-step input[type="file"]')
-    .forEach(el => el.addEventListener('change', () => setTimeout(updateButtons, 50)));
+    .forEach(el => el.addEventListener('change', () => {
+      validateField(el);
+      setTimeout(updateButtons, 50);
+    }));
 
   // ===== Training center autofill =====
   const tc = document.getElementById('training_center');
@@ -698,6 +777,10 @@
       state.value = '';
       district.value = '';
     }
+    // Validate after update
+    [state, district].forEach(el => {
+      if (el) validateField(el);
+    });
     setTimeout(updateButtons, 50);
   }
 
@@ -736,6 +819,26 @@
 
   // ===== Final sync on submit =====
   document.getElementById('regForm').addEventListener('submit', syncCreds);
+
+  // ===== Set max date for doe =====
+  const doeInput = document.querySelector('input[name="doe"]');
+  if (doeInput) {
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 86400000);
+    doeInput.max = yesterday.toISOString().split('T')[0];
+  }
+
+  // ===== On load, check for pre-filled errors and validate =====
+  window.addEventListener('load', () => {
+    document.querySelectorAll('.form-step input, .form-step select').forEach(el => {
+      const errorEl = document.getElementById(`error-${el.name}`);
+      if (errorEl && errorEl.textContent.trim()) {
+        el.classList.add('invalid');
+      }
+      validateField(el);
+    });
+    updateButtons();
+  });
 
   // ===== Start at step 0 =====
   showStep(0);

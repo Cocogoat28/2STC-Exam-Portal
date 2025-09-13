@@ -38,10 +38,10 @@ class QuestionPaperAdmin(admin.ModelAdmin):
             'admin/js/disable_trade.js',
         )
     form = QuestionPaperAdminForm
-    list_display = ("question_paper", "qp_assign", "trade")
+    list_display = ("question_paper", "qp_assign", "trade", "is_active")
     inlines = [PaperQuestionInline]
     search_fields = ("question_paper",)
-    fields = ("question_paper", "trade", "exam_duration", "qp_assign")
+    fields = ("question_paper", "trade", "exam_duration", "qp_assign", "is_active")
     readonly_fields = ("is_common",)  # optional: show is_common read-only if you want
 
     # NOTE: Removed reference to external static admin/js/disable_trade.js

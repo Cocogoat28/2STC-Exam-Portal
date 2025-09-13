@@ -135,7 +135,7 @@ def load_questions_from_excel_data(excel_data: bytes):
                 }
                 
                 # Build options for MCQ questions (A, B, C)
-                if part in ['A', 'B', 'C'] and len(row) > 5:
+                if part in ['A', 'B'] and len(row) > 5:
                     choices = []
                     # Get opt_a, opt_b, opt_c, opt_d (columns C, D, E, F - indices 2, 3, 4, 5)
                     for i in range(2, 6):  # indices 2, 3, 4, 5

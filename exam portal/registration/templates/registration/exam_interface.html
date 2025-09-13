@@ -3,8 +3,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Military Examination Portal</title>
     <link href="{% static 'css/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
     <script src="{% static 'css/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
@@ -38,7 +38,7 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a2e1a url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%233d6b3d' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
+            background: #1a2e1a url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2' fill='%233d6b3d' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
             color: var(--text-light);
             min-height: 100vh;
             display: flex;
@@ -555,7 +555,6 @@
 
 <body>
 
-
      <div id="fullscreenOverlay" style="
         position:fixed;top:0;left:0;width:100%;height:100%;
         background:#000;color:#fff;z-index:9999;
@@ -602,9 +601,8 @@
             </div>
 
             <div class="question-nav-container">
-                {% if part_a %}
                 <div class="question-nav">
-                    {% for question in part_a.questions.all %}
+                    {% for question in questions %}
                     <button type="button"
                             class="question-btn {% if forloop.first %}current{% endif %}"
                             id="nav-btn-{{ question.id }}"
@@ -613,7 +611,6 @@
                     </button>
                     {% endfor %}
                 </div>
-                {% endif %}
             </div>
 
             <div class="question-status">
@@ -627,24 +624,15 @@
         <!-- Main Content -->
         <div class="main-content">
             <div class="exam-header">
-                {% if part_a %}
-                <h1 class="exam-title">{{ part_a.question_paper }}</h1>
-                {% elif part_b %}
-                <h1 class="exam-title">{{ part_b.question_paper }}</h1>
-                {% endif %}
+                <h1 class="exam-title">{{ paper.question_paper }}{% if paper.trade %} — {{ paper.trade }}{% endif %}</h1>
             </div>
 
-            {% if part_a %}
-            <!-- form now points to backend -->
             <form method="post" id="exam-form" action="{% url 'exam_interface' %}">
                 {% csrf_token %}
-                {% if part_a %}
-                <input type="hidden" name="paper_id" value="{{ part_a.id }}">
-                {% elif part_b %}
-                <input type="hidden" name="paper_id" value="{{ part_b.id }}">
-                {% endif %}
+                <input type="hidden" name="session_id" value="{{ session.id }}">
+                <input type="hidden" name="paper_id" value="{{ paper.id }}">
 
-                {% for question in part_a.questions.all %}
+                {% for question in questions %}
                 <div class="question-card question-page" id="question-{{ forloop.counter0 }}" style="{% if not forloop.first %}display:none{% endif %}">
                     <div class="question-header">
                         <h2 class="question-text">Q{{ forloop.counter }}. {{ question.text }}</h2>
@@ -652,20 +640,51 @@
                     </div>
 
                     <div class="options-container">
-                        {% if question.part in "ABC" %}
-                            {% for choice in question.options.choices %}
-                                {% if choice %}
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio"
-                                           name="question_{{ question.id }}"
-                                           id="q{{ question.id }}_opt{{ forloop.counter }}"
-                                           value="{{ choice }}"
-                                           onchange="markAnswered({{ question.id }})">
-                                    <label class="form-check-label" for="q{{ question.id }}_opt{{ forloop.counter }}">{{ choice }}</label>
-                                </div>
-                                {% endif %}
-                            {% endfor %}
+                        {# MCQ parts A/B: robust handling for different shapes of question.options #}
+                        {% if question.part in "AB" %}
+                            {% comment %} Prefer legacy dict shape: question.options.choices {% endcomment %}
+                            {% if question.options and question.options.choices %}
+                                {% for choice in question.options.choices %}
+                                    {% if choice %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio"
+                                               name="question_{{ question.id }}"
+                                               id="q{{ question.id }}_opt{{ forloop.counter }}"
+                                               value="{{ choice }}"
+                                               onchange="markAnswered({{ question.id }})">
+                                        <label class="form-check-label" for="q{{ question.id }}_opt{{ forloop.counter }}">{{ choice }}</label>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% elif question.options %}
+                                {# options might be a list/array #}
+                                {% for choice in question.options %}
+                                    {% if choice %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio"
+                                               name="question_{{ question.id }}"
+                                               id="q{{ question.id }}_opt{{ forloop.counter }}"
+                                               value="{{ choice }}"
+                                               onchange="markAnswered({{ question.id }})">
+                                        <label class="form-check-label" for="q{{ question.id }}_opt{{ forloop.counter }}">{{ choice }}</label>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                {# fallback to a text input if no choices are available #}
+                                <input type="text" name="question_{{ question.id }}" class="form-control" placeholder="Answer" onchange="markAnswered({{ question.id }})">
+                            {% endif %}
+                        
+                        {% elif question.part == "C" %}
+                            {# Short answer text area #}
+                            <textarea name="question_{{ question.id }}" 
+                                      rows="3" 
+                                      class="form-control long-answer-input"
+                                      data-question-index="{{ forloop.counter0 }}"
+                                      placeholder="Type your detailed answer (30-50 words)" 
+                                      onchange="markAnswered({{ question.id }})"></textarea>
                         {% elif question.part == "D" %}
+                            {# Fill in the blanks - must be textbox (Part D) #}
                             <input type="text" 
                                    name="question_{{ question.id }}" 
                                    class="form-control fill-blank-input"
@@ -673,6 +692,7 @@
                                    placeholder="Enter your answer" 
                                    onchange="markAnswered({{ question.id }})">
                         {% elif question.part == "E" %}
+                            {# Long answer text area #}
                             <textarea name="question_{{ question.id }}" 
                                       rows="4" 
                                       class="form-control long-answer-input"
@@ -681,13 +701,16 @@
                                       onchange="markAnswered({{ question.id }})"></textarea>
                         {% elif question.part == "F" %}
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="q{{ question.id }}_true" value="True" onchange="markAnswered({{ question.id }})">
+                                <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="q{{ question.id }}_true" value="True." onchange="markAnswered({{ question.id }})">
                                 <label class="form-check-label" for="q{{ question.id }}_true">True</label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="q{{ question.id }}_false" value="False" onchange="markAnswered({{ question.id }})">
+                                <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="q{{ question.id }}_false" value="False." onchange="markAnswered({{ question.id }})">
                                 <label class="form-check-label" for="q{{ question.id }}_false">False</label>
                             </div>
+                        {% else %}
+                            {# Catch-all fallback #}
+                            <input type="text" name="question_{{ question.id }}" class="form-control" onchange="markAnswered({{ question.id }})">
                         {% endif %}
                     </div>
 
@@ -713,7 +736,6 @@
                 </div>
                 {% endfor %}
             </form>
-            {% endif %}
         </div>
     </div>
 </div>
@@ -1086,18 +1108,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------
   (function init() {
     const display = document.getElementById("timer");
-    const duration = (typeof {{ duration_seconds|default:0 }} !== "undefined")
-      ? {{ duration_seconds|default:0 }}
-      : 0;
+    const duration = {{ duration_seconds|default:0 }};
 
     if (display && duration > 0) {
       startTimer(duration, display);
     }
 
     // totalQuestions from Django; fall back to 0
-    window.totalQuestions = (typeof {{ part_a.questions.count|default:0 }} !== "undefined")
-      ? {{ part_a.questions.count|default:0 }}
-      : 0;
+    window.totalQuestions = {{ questions|length|default:0 }};
 
     if (window.totalQuestions > 0) showQuestion(0);
 
@@ -1265,10 +1283,6 @@ document.addEventListener('keydown', function(e) {
         return false;
     }
 });
-
-
-
-
 </script>
 
 </body>
